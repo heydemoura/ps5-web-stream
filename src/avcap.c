@@ -1,6 +1,7 @@
 /* Copyright (C) 2026 heydemoura */
 #include "avcap.h"
 #include "scanin.h"
+#include "share.h"
 #include "log.h"
 
 #include <dlfcn.h>
@@ -131,6 +132,10 @@ avcap_open(const avcap_config *cfg) {
     int sr = scanin_enable(11 /* 1920x1080 */);
     LOG("avcap: scanin_enable -> 0x%x", sr);
   }
+
+  /* Permit the Share capture/broadcast feature(s); libSceAvcap2's open path
+   * checks this per-process permit. Sweep ids once to find the right one. */
+  share_permit_sweep(0, 40);
 
   for (size_t mi = 0; mi < sizeof(k_modes)/sizeof(k_modes[0]); mi++) {
     for (size_t fi = 0; fi < sizeof(k_fps)/sizeof(k_fps[0]); fi++) {

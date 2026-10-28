@@ -117,3 +117,28 @@ system path (SceShellCore) guards capture behind a Share feature permit
 (`sceShareFeaturePermitCompatible`), reached through a C++/vtable call chain.
 The remaining gate is therefore a capture/Share capability check, not the
 scan-in tap and not the resolution parameters (all swept, all `0x81950008`).
+
+## Update: the gate is the whole Share subsystem, and it does not come up
+
+Pursuing the Share feature permit from the payload, the dependency chain is:
+
+```
+sceShareFeaturePermit(id)                 -> 0x8196000c  (Share not initialized)
+  needs sceShareInitialize(pool, uid, 0)  -> 0x81960001  (fails even with a valid user)
+    needs a login user id:
+      sceUserServiceInitialize(0)         -> 0x0         (ok)
+      sceUserServiceGetLoginUserIdList()  -> uid ok (a user is logged in)
+      sceUserServiceGetInitialUser()      -> 0x80940004  (no initial user for us)
+```
+
+So every feature permit returns `0x8196000c` because `sceShareInitialize`
+refuses (`0x81960001`) even once a valid logged-in user id is supplied. The
+system brings Share up through `sceShareInitializeForShellCore`, a ShellCore-
+only entry point, i.e. the capture gate expects the real system Share session.
+
+Conclusion: `sceAvcap2` capture from a standalone elfldr payload is gated
+behind the full Share/broadcast subsystem, which does not initialise cleanly
+outside SceShellCore. This is the same "IPMI/permit wall" other projects hit,
+and is why the direct scan-out read (kernel) or the passive screenshot API are
+the practical capture sources. The scan-in tap enable and the whole streaming
+stack (RTMP/HTTP-FLV/preview/mux) are complete and independent of this gate.
