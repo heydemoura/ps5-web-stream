@@ -96,3 +96,24 @@ preview want AAC, so an on-console AAC encoder (`libSceAjm`) is needed to carry
 audio. The muxer and FLV audio-tag path are already in place
 (`flv_audio_tag`, broadcaster AAC sequence header); only the encoder is
 outstanding. Video is unaffected and ships first.
+
+## Update: scan-in enabled, open still gated
+
+The scan-in tap can be enabled from a payload (userspace IPMI, `src/scanin.c`):
+
+```
+scanin: connect(SceSysAvControlIpc) -> 0x0
+scanin: invoke(setScanIn res=11)    -> 0x0        # succeeds; repeat -> 0x80020023 (already set)
+```
+
+The console stays fully responsive afterwards (FTP and the ELF loader keep
+answering), confirming the tap enable does **not** disturb the display — it is
+a read tap, not an output-mode change.
+
+However `sceAvcap2OpenVideo` still returns `0x81950008` with the tap active, so
+`0x81950008` is **not** "missing scan-in". `libSceAvcap2` connects to a
+separate endpoint, `SceAvcap2Ipc`, and the rejection comes from there. The
+system path (SceShellCore) guards capture behind a Share feature permit
+(`sceShareFeaturePermitCompatible`), reached through a C++/vtable call chain.
+The remaining gate is therefore a capture/Share capability check, not the
+scan-in tap and not the resolution parameters (all swept, all `0x81950008`).

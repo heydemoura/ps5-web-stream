@@ -1,5 +1,6 @@
 /* Copyright (C) 2026 heydemoura */
 #include "avcap.h"
+#include "scanin.h"
 #include "log.h"
 
 #include <dlfcn.h>
@@ -44,8 +45,10 @@ static int (*p_GetVideoOutMode)(int *out);
 
 static void *g_vobj, *g_aobj;
 static int   g_err;
+static int   g_use_scanin;     /* opt-in: enable the scan-in capture tap */
 
 int avcap_last_error(void) { return g_err; }
+void avcap_set_scanin(int on) { g_use_scanin = on; }
 
 static void *RES(const char *n) {
   void *f = dlsym(g_lib, n);
@@ -102,28 +105,56 @@ avcap_init(void) {
 static void set32(uint8_t *base, int off, uint32_t v) { *(uint32_t *)(base + off) = v; }
 static void set8 (uint8_t *base, int off, uint8_t  v) { *(uint8_t  *)(base + off) = v; }
 
+/* Resolution/rate parameter sets, taken from SceShellCore's video-open tables
+ * (rescode, ressub) per output mode, each tried at 60 and 30 fps. We cannot
+ * query the current mode before opening (that path needs the very context an
+ * open creates), so we sweep until the AV-control daemon stops replying with
+ * the mode-mismatch code 0x81950008. Every attempt is read-only. */
+static const struct { int rescode, ressub; } k_modes[] = {
+  {4, 1}, {4, 0}, {3, 0}, {6, 1}, {3, 1},
+};
+static const int k_fps[] = { 60, 30 };
+
+#define AVCAP_EMODE ((int)0x81950008)
+
 int
 avcap_open(const avcap_config *cfg) {
   g_vobj = aligned_alloc(16, VOBJ_SIZE);
   if (!g_vobj) return -1;
-  memset(g_vobj, 0, VOBJ_SIZE);
 
   uint8_t *params = (uint8_t *)g_vobj + 8;
-  set32(params, P_RESCODE, 4);
-  set32(params, P_RESSUB,  1);
-  set32(params, P_FLAGA,   0);
-  set32(params, P_FLAGB,   2);
-  set32(params, P_FPS,     (uint32_t)cfg->fps);
-  set32(params, P_BITRATE, (uint32_t)cfg->bitrate);
-  set32(params, P_CS0,     0);
-  set32(params, P_CS1,     1);
-  set8 (params, P_CS2,     1);
-  set8 (params, P_CS3,     1);
-  set32(params, P_MEMMODE, 0);
+  int r = AVCAP_EMODE;
 
-  int r = p_OpenVideo(g_vobj, params, 0);
-  LOG("avcap: OpenVideo -> 0x%x (handle=%p)", r, *(void **)g_vobj);
-  g_err = r;
+  /* If opted in, enable the capture tap on the AV-control daemon first; a
+   * read tap of the current signal, not an output-mode change. */
+  if (g_use_scanin) {
+    int sr = scanin_enable(11 /* 1920x1080 */);
+    LOG("avcap: scanin_enable -> 0x%x", sr);
+  }
+
+  for (size_t mi = 0; mi < sizeof(k_modes)/sizeof(k_modes[0]); mi++) {
+    for (size_t fi = 0; fi < sizeof(k_fps)/sizeof(k_fps[0]); fi++) {
+      memset(g_vobj, 0, VOBJ_SIZE);
+      set32(params, P_RESCODE, k_modes[mi].rescode);
+      set32(params, P_RESSUB,  k_modes[mi].ressub);
+      set32(params, P_FLAGA,   0);
+      set32(params, P_FLAGB,   2);
+      set32(params, P_FPS,     (uint32_t)k_fps[fi]);
+      set32(params, P_BITRATE, (uint32_t)cfg->bitrate);
+      set32(params, P_CS0,     0);
+      set32(params, P_CS1,     1);
+      set8 (params, P_CS2,     1);
+      set8 (params, P_CS3,     1);
+      set32(params, P_MEMMODE, 0);
+
+      r = p_OpenVideo(g_vobj, params, 0);
+      LOG("avcap: OpenVideo rescode=%d/%d fps=%d -> 0x%x (handle=%p)",
+          k_modes[mi].rescode, k_modes[mi].ressub, k_fps[fi], r, *(void **)g_vobj);
+      g_err = r;
+      if (r >= 0) { mi = 999; break; }       /* success */
+      if (r != AVCAP_EMODE) { mi = 999; break; } /* a different error: stop */
+    }
+  }
   if (r < 0) { free(g_vobj); g_vobj = NULL; return r; }
 
   r = p_Start(*(void **)g_vobj);

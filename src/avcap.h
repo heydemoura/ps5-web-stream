@@ -52,5 +52,6 @@ void avcap_close(void);
 
 /* Last raw SCE return code seen, for diagnostics. */
 int  avcap_last_error(void);
+void avcap_set_scanin(int on);
 
 #endif /* PS5HS_AVCAP_H */

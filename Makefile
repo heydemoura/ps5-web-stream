@@ -17,7 +17,7 @@ ELF     := ps5-hdmi-stream.elf
 SRCDIR  := src
 GENDIR  := $(SRCDIR)/gen
 SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \
-           $(SRCDIR)/rtmp.c $(SRCDIR)/http.c
+           $(SRCDIR)/rtmp.c $(SRCDIR)/http.c $(SRCDIR)/scanin.c
 GEN     := $(GENDIR)/web_index.h
 
 CFLAGS  := -Wall -Wextra -Werror -O2 -g -rdynamic -pthread -I$(SRCDIR)

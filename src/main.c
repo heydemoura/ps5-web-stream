@@ -128,8 +128,11 @@ int
 main(int argc, char **argv) {
   int http_port = DEF_HTTP_PORT;
   int rtmp_port = DEF_RTMP_PORT;
+  int use_scanin = 1;   /* enable the capture tap by default; see scanin.c */
   if (argc > 1) http_port = atoi(argv[1]);
   if (argc > 2) rtmp_port = atoi(argv[2]);
+  for (int i = 1; i < argc; i++)
+    if (!strcmp(argv[i], "noscanin") || !strcmp(argv[i], "--noscanin")) use_scanin = 0;
 
   setvbuf(stdout, NULL, _IONBF, 0);
   LOG("=== PS5 HDMI Stream starting (http=%d rtmp=%d) ===", http_port, rtmp_port);
@@ -152,6 +155,9 @@ main(int argc, char **argv) {
     LOG("main: avcap_init failed (0x%x); serving UI/log only", avcap_last_error());
     for (;;) pause();
   }
+
+  avcap_set_scanin(use_scanin);
+  LOG("main: scan-in capture tap %s", use_scanin ? "enabled" : "disabled");
 
   avcap_config cfg = {
     .width = CFG_WIDTH, .height = CFG_HEIGHT,
