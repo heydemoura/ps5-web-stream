@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS5 HDMI Stream</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#151922; --panel2:#1c2230; --line:#28303f;
+    --fg:#e8ecf4; --muted:#8b95a7; --accent:#4f8cff; --ok:#39d98a; --warn:#ffb020;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:16px 20px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+  .dot.live{background:var(--ok);box-shadow:0 0 0 4px rgba(57,217,138,.15)}
+  .dot.err{background:var(--warn)}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px;display:grid;gap:20px}
+  .video-card{background:#000;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;position:relative;aspect-ratio:16/9}
+  video{width:100%;height:100%;display:block;background:#000}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;color:var(--muted);font-size:14px;text-align:center;
+    padding:24px;pointer-events:none}
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;
+    padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  button.ghost{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+  button:active{transform:translateY(1px)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 12px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;
+    border-bottom:1px dashed var(--line);font-size:14px}
+  .kv:last-child{border:0}
+  .kv span:first-child{color:var(--muted)}
+  code{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+    padding:3px 8px;font-size:13px;word-break:break-all;user-select:all}
+  .copy{display:flex;align-items:center;gap:8px;margin-top:6px}
+  pre{background:#0a0c10;border:1px solid var(--line);border-radius:10px;padding:12px;
+    font-size:12px;max-height:220px;overflow:auto;color:var(--muted);margin:0;
+    white-space:pre-wrap}
+  a{color:var(--accent)}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:0 20px 28px}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>PS5 HDMI Stream</h1>
+  <span id="state" style="color:var(--muted);font-size:13px">connecting…</span>
+</header>
+
+<div class="wrap">
+  <div class="video-card">
+    <video id="v" controls autoplay muted playsinline></video>
+    <div class="overlay" id="ov">Press Play to start the live preview.</div>
+  </div>
+
+  <div class="controls">
+    <button id="play">▶ Play preview</button>
+    <button id="reload" class="ghost">↻ Reconnect</button>
+    <button id="mute" class="ghost">🔇 Unmute</button>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Stream</h2>
+      <div class="kv"><span>Resolution</span><span id="res">—</span></div>
+      <div class="kv"><span>Frame rate</span><span id="fps">—</span></div>
+      <div class="kv"><span>Audio</span><span id="aud">—</span></div>
+      <div class="kv"><span>Viewers</span><span id="cli">—</span></div>
+    </div>
+    <div class="panel">
+      <h2>Use in OBS</h2>
+      <p style="margin:0 0 6px;color:var(--muted);font-size:13px">
+        Add a <b>Media Source</b>, uncheck “Local File”, and set the input to the
+        RTMP URL. Or use the HTTP-FLV URL — both carry the same feed.</p>
+      <div class="copy">RTMP <code id="rtmp">—</code></div>
+      <div class="copy">HTTP-FLV <code id="flv">—</code></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Payload log</h2>
+    <pre id="log">…</pre>
+  </div>
+</div>
+
+<footer>Served from the console · <a href="/live.flv">/live.flv</a> · <a href="/status">/status</a> · <a href="/log">/log</a></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
+<script>
+(function(){
+  var host = location.hostname;
+  var httpPort = location.port || "80";
+  var v = document.getElementById('v');
+  var ov = document.getElementById('ov');
+  var dot = document.getElementById('dot');
+  var state = document.getElementById('state');
+  var player = null;
+
+  var flvUrl = location.protocol + "//" + host + ":" + httpPort + "/live.flv";
+  document.getElementById('flv').textContent = flvUrl;
+
+  function setState(s, cls){ state.textContent = s; dot.className = "dot " + (cls||""); }
+
+  function start(){
+    if (!window.flvjs || !flvjs.isSupported()){
+      ov.textContent = "This browser can't play FLV. Use Chrome, or add the RTMP URL in OBS.";
+      ov.style.display = "flex"; return;
+    }
+    stop();
+    player = flvjs.createPlayer(
+      { type:'flv', url:flvUrl, isLive:true, hasAudio:true, hasVideo:true },
+      { enableStashBuffer:false, liveBufferLatencyChasing:true, lazyLoad:false });
+    player.attachMediaElement(v);
+    player.on(flvjs.Events.ERROR, function(a,b){ setState("stream error: "+b, "err"); });
+    player.load();
+    v.play().catch(function(){});
+    ov.style.display = "none";
+    setState("live", "live");
+  }
+  function stop(){ if (player){ try{player.destroy();}catch(e){} player=null; } }
+
+  document.getElementById('play').onclick = start;
+  document.getElementById('reload').onclick = start;
+  document.getElementById('mute').onclick = function(){
+    v.muted = !v.muted; this.textContent = v.muted ? "🔇 Unmute" : "🔊 Mute";
+  };
+
+  function poll(){
+    fetch('/status').then(function(r){return r.json();}).then(function(s){
+      document.getElementById('res').textContent = s.video || "—";
+      document.getElementById('fps').textContent = s.fps ? s.fps + " fps" : "—";
+      document.getElementById('aud').textContent = s.audio ? "AAC" : "none (video only)";
+      document.getElementById('cli').textContent = s.clients;
+      document.getElementById('rtmp').textContent =
+        "rtmp://" + host + ":" + (s.rtmp_port||1935) + "/live/stream";
+      if (dot.className.indexOf("live") < 0) setState("ready", "");
+    }).catch(function(){ setState("offline", "err"); });
+    fetch('/log').then(function(r){return r.text();}).then(function(t){
+      var el = document.getElementById('log');
+      el.textContent = t.slice(-4000);
+      el.scrollTop = el.scrollHeight;
+    }).catch(function(){});
+  }
+  poll(); setInterval(poll, 2000);
+})();
+</script>
+</body>
+</html>
