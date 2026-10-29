@@ -31,6 +31,23 @@ and reconnection continue, with audio muted by default. Omit the parameter or
 use `controls=1` to show controls again. The option applies only to `/player`.
 Non-interactive connection/error messages remain visible when needed.
 
+Player URL options can be combined:
+
+| Parameter | Meaning |
+|---|---|
+| `mute=0` | Start unmuted; preserve this state across reconnects |
+| `mute=1` | Start muted (also the default) |
+| `resolution=1` | 720p |
+| `resolution=2` | 1080p |
+| `resolution=3` | 1440p |
+| `resolution=4` | 4K |
+
+Example: `/player?controls=0&mute=0&resolution=4`.
+Resolution is applied once on page load and changes capture for all viewers.
+Invalid values are ignored. If the browser blocks autoplay with sound, tap the
+video to start; controls stay hidden and audio is not silently muted.
+
+
 
 Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
 mute, volume, reconnect, picture-in-picture and fullscreen. Open **Settings**

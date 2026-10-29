@@ -1,0 +1,35 @@
+{
+  "elf_sha256": "449865c2122df59bff8caa3d0eb8a8188482e6e5c3981cd4385b1ce53b122033",
+  "app_sha256": "4138f9e310e87957f019dedd20d6c10d9c638409a0a6cf6f581a41d5dea66b0c",
+  "console_test": "{\"resolution\":1,\"mode\":\"720p\",\"width\":1280,\"height\":720,\"muted\":false,\"controls\":false,\"gestureRequired\":false,\"passed\":true}\n{\"resolution\":2,\"mode\":\"1080p\",\"width\":1920,\"height\":1080,\"muted\":false,\"controls\":false,\"gestureRequired\":false,\"passed\":true}\n{\"resolution\":3,\"mode\":\"1440p\",\"width\":2560,\"height\":1440,\"muted\":false,\"controls\":false,\"gestureRequired\":false,\"passed\":true}\n{\"resolution\":4,\"mode\":\"4k\",\"width\":3840,\"height\":2160,\"muted\":false,\"controls\":false,\"gestureRequired\":false,\"passed\":true}\nExplicit mute=1 autoplay passed\n",
+  "simulated_autoplay_rejection_test": "{\"resolution\":2,\"mode\":\"1080p\",\"width\":1920,\"height\":1080,\"muted\":false,\"controls\":false,\"gestureRequired\":true,\"passed\":true}\nExplicit mute=1 autoplay passed\n",
+  "unit_test": "PASS: URL mute and resolution options initialize once and survive reconnect\nPASS: fullscreen player autoplays muted without a gesture and skips dashboard-only requests\nPASS: dashboard autoplays when capture is ready; failures and stale media never claim live\nPASS: fullscreen player waits through applying, then autoplays the ready source\nPASS: blocked autoplay offers a persistent native-control fallback and recovers on playback\nPASS: unsupported browser and offline errors remain truthful across polls\nPASS: polling preserves an unapplied capture-resolution selection\nPASS: settings POST sends the chosen preset once, protects pending work, then follows accepted state\nPASS: a newer selection made during an older POST is preserved after its response\nPASS: settings failure stays visible and preserves the choice until the user retries or edits\nPASS: settings timeout aborts the request and permits a retry\nPASS: capture generations and resolution changes replace the player while preserving user audio choice\nPASS: stream completion and errors reconnect with backoff; old callbacks cannot destroy a replacement\nDashboard/player behavior: 13 scenarios passed\n",
+  "host_suite": "make test passed with ASan/UBSan, HTTP integration and H264/AAC transport",
+  "sdk_build": "passed",
+  "final_status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 16006,
+    "audio_frames": 12720,
+    "last_video_ms": 272114,
+    "last_audio_ms": 272166,
+    "video_age_ms": 12,
+    "audio_age_ms": 8,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 4,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 6,
+    "capture_revision": 6,
+    "stream_revision": 6,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  }
+}

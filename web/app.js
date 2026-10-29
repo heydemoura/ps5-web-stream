@@ -7,7 +7,11 @@
   var playButton = document.getElementById('play');
   var muteButton = document.getElementById('mute');
   var fullscreenPage = document.body.dataset.player === 'fullscreen';
-  var controlsHidden = fullscreenPage && ['0', 'false'].includes(new URL(location.href).searchParams.get('controls'));
+  var options = new URL(location.href).searchParams;
+  var controlsHidden = fullscreenPage && ['0', 'false'].includes(options.get('controls'));
+  var resolutionOption = options.get('resolution');
+  var initialResolution = fullscreenPage && /^[1-4]$/.test(resolutionOption) ?
+    ['720p','1080p','1440p','4k'][Number(resolutionOption)-1] : null;
   var player = null, wanted = true, status = null, timer = null;
   var settingsBusy = false, settingsDirty = false, settingsError = '';
   var resolution = document.getElementById('resolution');
@@ -18,7 +22,7 @@
   var flvUrl = new URL('/live.flv', location.href).href;
   var playerLink = document.getElementById('player-link');
   if (playerLink) playerLink.textContent = new URL('/player', location.href).href;
-  v.muted = true;
+  v.defaultMuted = v.muted = !(fullscreenPage && options.get('mute') === '0');
 
   function setState(text, cls){
     state.textContent = text;
@@ -51,12 +55,15 @@
       setState(status && status.capture_state === 'error' ? 'capture unavailable' : 'waiting for capture',
         status && status.capture_state === 'error' ? 'err' : '');
       overlay(captureMessage());
+    } else if (settingsError) {
+      setState('resolution unavailable', 'err');
+      overlay(settingsError);
     } else if (previewIssue) {
       setState('preview unsupported', 'err');
       overlay(previewIssue);
     } else if (playBlocked) {
       setState('press video Play', '');
-      overlay(controlsHidden ? 'Autoplay was blocked. Open /player without the controls parameter to start playback.' : 'Press Play in the video controls to begin playback.');
+      overlay(controlsHidden ? 'Autoplay was blocked. Tap the video to start playback.' : 'Press Play in the video controls to begin playback.');
     } else if (!wanted) {
       setState('stream available', '');
       overlay('Press Play to start the live preview.');
@@ -125,6 +132,12 @@
       if (edge - v.currentTime > 3) v.currentTime = Math.max(0, edge - 0.5);
     }
     render();
+  });
+  v.addEventListener('click', function(){
+    if (wanted && playBlocked) {
+      var resumed = v.play();
+      if (resumed && resumed.catch) resumed.catch(function(){ playBlocked = true; render(); });
+    }
   });
   v.addEventListener('pause', render);
   v.addEventListener('waiting', function(){
@@ -227,10 +240,7 @@
     } catch (e) {}
     if (!stopped) timer = setTimeout(poll, 1000);
   }
-  if (settingsForm) {
-    resolution.onchange = function(){ settingsDirty = true; settingsError = ''; };
-    settingsForm.onsubmit = async function(event){
-      event.preventDefault();
+  async function applyResolution(){
       if (settingsBusy) return;
       settingsBusy = true;
       settingsError = '';
@@ -252,7 +262,10 @@
         settingsError = 'Could not change resolution. Please try again.';
         settingsMessage.textContent = settingsError;
       } finally { clearTimeout(deadline); settingsBusy = false; apply.disabled = false; }
-    };
+  }
+  if (settingsForm) {
+    resolution.onchange = function(){ settingsDirty = true; settingsError = ''; };
+    settingsForm.onsubmit = function(event){ event.preventDefault(); return applyResolution(); };
   }
   window.addEventListener('pagehide', function(){
     stopped = true;
@@ -260,5 +273,10 @@
     clearTimeout(timer);
     destroyPlayer();
   });
-  poll();
+  // Apply a valid URL selection once, before opening media. Polling must not
+  // continually fight later settings changes made by another viewer.
+  if (initialResolution) {
+    resolution.value = initialResolution;
+    applyResolution().then(function(){ if (!stopped) poll(); });
+  } else { poll(); }
 })();

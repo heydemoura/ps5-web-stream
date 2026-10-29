@@ -11,6 +11,25 @@ desktop/mobile viewport coverage, Unmute, reconnect and Stop. These results
 distinguish native decoded dimensions from the size at which a browser
 displays video.
 
+## Mute and resolution URL options
+
+`/player?controls=0&mute=0&resolution=4` starts the 4K capture unmuted with
+controls hidden. `mute=1` selects muted playback (the default); resolution 1–4
+maps to 720p, 1080p, 1440p, 4K. A valid resolution is submitted once before media
+starts. Later polling does not override changes made by another viewer.
+Invalid values and dashboard query options are ignored.
+
+All four mappings passed real-console browser tests at native dimensions with
+advancing audio, hidden controls, and one settings POST per page. Explicit
+mute=1 autoplay passed. A separate browser test simulates an autoplay policy
+rejection and verifies that tapping the video starts it unmuted without exposing
+controls. The browser itself may allow or block audible autoplay.
+
+Run `tests/test_player_url_capture.cjs` with the same browser environment as the
+other console tests; add `PS5HS_TEST_BLOCK_AUTOPLAY=1` for the simulated policy
+check. Both runs restore 1080p. [Validation evidence](evidence/player-url-capture.json)
+includes the console results, 13 unit scenarios, build hashes and final status.
+
 ## Liquid glass controls and player URL options
 
 The control bar, status badges and settings menu now use translucent glass

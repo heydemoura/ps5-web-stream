@@ -31,7 +31,7 @@ function response(body, status = 200) {
   return {ok:status >= 200 && status < 300, status,
     json:async () => ({...body}), text:async () => String(body)};
 }
-function harness({fullscreen = false, initial = streaming(), blocked = false} = {}) {
+function harness({fullscreen = false, initial = streaming(), blocked = false, query = ''} = {}) {
   const html = fullscreen ? playerHTML : dashboardHTML;
   const nodes = new Map();
   for (const [,id] of html.matchAll(/\bid="([^"]+)"/g)) {
@@ -62,7 +62,7 @@ function harness({fullscreen = false, initial = streaming(), blocked = false} = 
     }};
   const context = {
     document:{body:{dataset:fullscreen ? {player:'fullscreen'} : {}}, getElementById:node},
-    location:{href:'http://192.168.0.190:8081/' + (fullscreen ? 'player' : ''), hostname:'192.168.0.190'},
+    location:{href:'http://192.168.0.190:8081/' + (fullscreen ? 'player' : '') + query, hostname:'192.168.0.190'},
     window:{flvjs, addEventListener(event, callback) { windowListeners[event] = callback; }}, flvjs,
     URL, AbortController, Date:{now:() => now},
     setTimeout(callback, ms) { const id = ++clockID; timers.set(id, {callback,ms,due:now+ms}); return id; },
@@ -120,6 +120,35 @@ function harness({fullscreen = false, initial = streaming(), blocked = false} = 
 
 const cases = [];
 function test(name, run) { cases.push({name, run}); }
+
+test('URL mute and resolution options initialize once and survive reconnect', async () => {
+  for (const [number, mode] of [['1','720p'],['2','1080p'],['3','1440p'],['4','4k']]) {
+    const h = harness({fullscreen:true, query:'?controls=0&mute=0&resolution='+number});
+    await settle();
+    assert.equal(h.video.muted, false);
+    assert.equal(h.requests[0].path, '/settings');
+    assert.equal(h.requests[0].options.body, 'resolution='+mode);
+    await h.poll(); await h.poll();
+    assert.equal(h.requests.filter(r=>r.path==='/settings').length, 1);
+    h.node('reload').onclick(); assert.equal(h.video.muted, false);
+    h.close();
+  }
+  for (const query of ['?mute=1','?mute=invalid&resolution=5','?resolution=__proto__']) {
+    const h = harness({fullscreen:true, query}); await settle();
+    assert.equal(h.video.muted, true);
+    assert(!h.requests.some(r=>r.path==='/settings'));
+    h.close();
+  }
+  const blocked = harness({fullscreen:true, query:'?mute=0&controls=0', blocked:true});
+  await settle();
+  assert(blocked.node('ov').textContent.includes('Tap the video'));
+  assert.equal(blocked.video.muted, false);
+  blocked.blockPlay(false); blocked.video.listeners.click(); blocked.progress();
+  assert.equal(blocked.node('state').textContent, 'live');
+  assert.equal(blocked.video.muted, false); blocked.close();
+  const h = harness({query:'?mute=0&resolution=4'}); await settle();
+  assert.equal(h.video.muted, true); assert(!h.requests.some(r=>r.path==='/settings')); h.close();
+});
 
 test('fullscreen player autoplays muted without a gesture and skips dashboard-only requests', async () => {
   const h = harness({fullscreen:true}); await settle();
