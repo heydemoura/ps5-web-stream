@@ -1,4 +1,4 @@
-# PS5 HDMI Stream — payload build
+# PS5 Web Stream — payload build
 #
 # Requires the ps5-payload-dev SDK:
 #   export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
@@ -19,7 +19,7 @@ endif
 include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
 endif
 
-ELF     := ps5-hdmi-stream.elf
+ELF     := ps5-web-stream.elf
 SRCDIR  := src
 GENDIR  := $(SRCDIR)/gen
 SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \

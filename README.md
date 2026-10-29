@@ -1,4 +1,4 @@
-# PS5 HDMI Stream
+# PS5 Web Stream
 
 A web-only PlayStation 5 homebrew payload that streams console video and audio
 over your local network, without a capture card. The console serves the
@@ -123,14 +123,14 @@ export LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config  # macOS
 make HTTP_PORT=8081
 ```
 
-This builds `ps5-hdmi-stream.elf`. Omit `HTTP_PORT` to use `8080`. Web assets are
+This builds `ps5-web-stream.elf`. Omit `HTTP_PORT` to use `8080`. Web assets are
 embedded by `tools/embed.py`; `xxd` is not required.
 
 Stop an existing capture copy, then send the compiled ELF unchanged to a running
 ELF loader:
 
 ```sh
-python3 tools/deploy.py 192.168.0.190 9021 ps5-hdmi-stream.elf
+python3 tools/deploy.py 192.168.0.190 9021 ps5-web-stream.elf
 ```
 
 Alternatively, build and upload together:

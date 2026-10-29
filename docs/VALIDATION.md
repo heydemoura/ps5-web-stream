@@ -212,7 +212,7 @@ existing capture copy before replacing it:
 
 ```sh
 make HTTP_PORT=8081
-python3 tools/deploy.py 192.168.0.190 9021 ps5-hdmi-stream.elf
+python3 tools/deploy.py 192.168.0.190 9021 ps5-web-stream.elf
 curl http://192.168.0.190:8081/status
 ```
 

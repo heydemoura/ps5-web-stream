@@ -1,5 +1,5 @@
 {
-  "name": "ps5-hdmi-stream-web",
+  "name": "ps5-web-stream",
   "private": true,
   "scripts": {"build:player": "node tools/build-player.cjs"},
   "devDependencies": {"@videojs/html": "10.2.0", "esbuild": "0.28.2"}

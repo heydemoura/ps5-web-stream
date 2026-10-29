@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
   }
   signal(SIGPIPE, SIG_IGN); signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
   setvbuf(stdout, NULL, _IONBF, 0);
-  LOG("PS5 HDMI Stream %s: PID %d HTTP %d", PS5HS_VERSION, (int)getpid(), http_port);
+  LOG("PS5 Web Stream %s: PID %d HTTP %d", PS5HS_VERSION, (int)getpid(), http_port);
   broadcaster_init(&g_bc);
   /* FLV's track flags are fixed for the lifetime of an HTTP connection. */
   g_bc.have_audio = 1;
