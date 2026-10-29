@@ -29,6 +29,7 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
       return document.getElementById('state').textContent === 'live' && v.currentTime > 1 &&
         v.videoWidth > 0 && v.webkitAudioDecodedByteCount > 0;
     }, null, {timeout:30000});
+    assert(await player.evaluate(() => !!customElements.get('live-video-player')), 'Video.js must be registered');
     assert(await player.locator('#v').evaluate(v => v.muted), 'Autoplay starts muted without a gesture');
     for (const viewport of [{width:1366,height:768}, {width:390,height:844}]) {
       await player.setViewportSize(viewport);
@@ -40,13 +41,29 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
     }
     await player.locator('#mute').click();
     assert.equal(await player.locator('#v').evaluate(v => v.muted), false);
+    await player.locator('#playback').click();
+    assert(await player.locator('#v').evaluate(v => v.paused), 'Video.js pauses playback');
+    await player.locator('#playback').press('Space');
+    await player.waitForFunction(() => !document.getElementById('v').paused);
+    const volume = await player.locator('#v').evaluate(v => v.volume);
+    await player.locator('media-slider-thumb').focus();
+    await player.locator('media-slider-thumb').press('ArrowLeft');
+    assert(await player.locator('#v').evaluate((v, before) => v.volume < before, volume), 'Keyboard volume control');
+    await player.locator('media-fullscreen-button').click();
+    assert(await player.evaluate(() => document.fullscreenElement?.matches('media-container')), 'Fullscreen includes the controls');
+    await player.locator('media-fullscreen-button').click();
     const dashboard = await context.newPage();
     await dashboard.goto(base + '/');
     assert.equal(await dashboard.locator('#resolution option').count(), 4);
     assert.equal(await dashboard.locator('a[href="/player"]').count(), 1);
+    await dashboard.locator('#playback').press('Enter');
+    await dashboard.waitForFunction(() => document.getElementById('v').currentTime > 1, null, {timeout:30000});
+    await dashboard.locator('#quality-menu summary').click();
     for (const mode of modes) {
-      await dashboard.locator('#resolution').selectOption(mode);
-      await dashboard.locator('#apply').click();
+      const controls = mode === '1440p' ? player : dashboard;
+      if (mode === '1440p') await player.locator('#quality-menu summary').click();
+      await controls.locator('#resolution').selectOption(mode);
+      await controls.locator('#apply').click();
       await dashboard.waitForFunction(mode =>
         document.getElementById('settings-message').textContent.includes('Capturing ' +
           ({'720p':'1280x720','1080p':'1920x1080','1440p':'2560x1440','4k':'3840x2160'})[mode]),
@@ -70,16 +87,19 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
       });
       assert(cadence.fps >= 55 && cadence.fps <= 65 && cadence.wallFps >= 55 && cadence.wallFps <= 65, JSON.stringify({mode, cadence}));
       assert(cadence.audioProgress > 0, 'Audio must continue across each resolution switch');
+      assert.equal(await player.locator('#v').evaluate(v => v.volume), 0.95, 'Volume survives resolution changes');
+      if (mode === '1440p') await player.locator('#quality-menu summary').press('Escape');
       results.push({mode, ...sample, ...cadence});
       console.log('Dashboard applied capture resolution; fullscreen player resumed:', results.at(-1));
     }
     await player.locator('#reload').click();
     await player.waitForFunction(() => document.getElementById('state').textContent === 'live');
+    await player.locator('#quality-menu summary').click();
     await player.locator('#play').click();
     await player.waitForFunction(() => document.getElementById('state').textContent === 'stream available');
     assert.deepEqual(errors, []);
     assert(requests.every(url => new URL(url).origin === base));
-    console.log('Autoplay without a gesture, viewport coverage, audio, dashboard controls and reconnect passed.');
+    console.log('Video.js autoplay, pause/resume, keyboard volume, fullscreen, viewport coverage, audio, resolution switching, reconnect and Stop passed.');
   } finally {
     if (modes.length) {
       await context.request.post(base + '/settings', {form:{resolution:'1080p'},

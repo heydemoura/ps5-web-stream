@@ -1,0 +1,49 @@
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '4k',
+  width: 3840,
+  height: 2160,
+  frames: 18,
+  audioBytes: 7572,
+  time: 0.218089,
+  muted: false,
+  fps: 59.98569940926084,
+  audioProgress: 79908,
+  wallFps: 59.98440405551762
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1440p',
+  width: 2560,
+  height: 1440,
+  frames: 8,
+  audioBytes: 6485,
+  time: 0.057802,
+  muted: false,
+  fps: 59.383669490890014,
+  audioProgress: 80214,
+  wallFps: 59.383372655939496
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '720p',
+  width: 1280,
+  height: 720,
+  frames: 9,
+  audioBytes: 5461,
+  time: 0.09581,
+  muted: false,
+  fps: 59.38477374401203,
+  audioProgress: 80098,
+  wallFps: 59.384560013546974
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1080p',
+  width: 1920,
+  height: 1080,
+  frames: 4,
+  audioBytes: 4096,
+  time: 0.023107,
+  muted: false,
+  fps: 59.58525860702063,
+  audioProgress: 79872,
+  wallFps: 59.58450802848084
+}
+Video.js autoplay, pause/resume, keyboard volume, fullscreen, viewport coverage, audio, resolution switching, reconnect and Stop passed.

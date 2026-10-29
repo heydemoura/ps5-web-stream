@@ -1,0 +1,50 @@
+{
+  "videojs": "@videojs/html@10.2.0",
+  "bundle_sha256": "a4de485adc9ddc96c4b82ba912350b6d6896032cb250404ee5118b1237445e3a",
+  "elf_sha256": "aaad8d199399aa36c0f07c3d69cf0009cbcf1c436e399ebe8723d12a97e124e4",
+  "source_sha256": {
+    "web/app.js": "b2253253eb45531ddc147e91127a51b97266174c51549352210367540f634b73",
+    "web/player.html": "ffb6916f4d8edade1cc3bacc056fa6f309a61a373eb75d9691f6635ac68c2698",
+    "web/index.html": "61e024fc42dec30d91a18d1d35aa7f27fc9befa24b1b581a8698372ac9406c41",
+    "web/player.css": "8f9bff4d0d9c4ea8e039fb70bce86b489d4297a4c5f11e987b7b415a21e0a071",
+    "src/http.c": "c17db1770484b9ae4f40f0bca846a8f78a7bdb0bc3b71c244f4ad2036590c454"
+  },
+  "startup": "PS5 HDMI Stream cc55428-dirty: PID 104 HTTP 8081",
+  "status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 6244,
+    "audio_frames": 4920,
+    "last_video_ms": 105636,
+    "last_audio_ms": 105674,
+    "video_age_ms": 11,
+    "audio_age_ms": 10,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 2,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 5,
+    "capture_revision": 5,
+    "stream_revision": 5,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  },
+  "validation": [
+    "make test: ASan/UBSan, HTTP assets, 12 playback/settings scenarios, H264/AAC transport",
+    "SDK payload build",
+    "Chrome console: all four resolutions, wall-clock 60fps, audio progress, Video.js pause/resume, keyboard volume, fullscreen, keyboard initial play, resolution settings on both pages, reconnect, stop",
+    "Host Chrome fixture: responsive screenshots inspected at1280x720 and390x844; no CDN requests",
+    "Host Chrome fixture: Video.js picture-in-picture enter and exit passed"
+  ],
+  "limits": [
+    "Other browser engines and physical mobile devices not tested",
+    "Picture-in-picture depends on browser support"
+  ]
+}

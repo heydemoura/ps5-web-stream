@@ -11,6 +11,23 @@ desktop/mobile viewport coverage, Unmute, reconnect and Stop. These results
 distinguish native decoded dimensions from the size at which a browser
 displays video.
 
+## Video.js player validation
+
+The current dashboard and fullscreen page use locally bundled Video.js 10.2.0
+HTML components, with the existing flv.js transport. All controls are inside
+`media-container`, so fullscreen retains playback, volume, capture settings,
+reconnect, picture-in-picture and Stop. Resolution remains shared by viewers.
+
+The [real-console browser test](evidence/videojs-browser.log) passed all four
+resolutions with audio and measured wall-clock playback near 60 fps. It also
+checks pause/resume, keyboard volume, keyboard initial playback, fullscreen,
+resolution changes from both pages, preserved volume, reconnect and Stop.
+Desktop and 390px mobile layouts were visually inspected using synthetic video.
+[Host tests](evidence/videojs-host.log) and the SDK build passed. The
+[build identity](evidence/videojs-build.json) records the deployed payload,
+asset hashes and healthy 1080p state after validation. Other browser engines
+and physical mobile devices remain untested.
+
 ## Current 60-fps validation
 
 All four presets now request 60 fps. The strict hardware test selects 4K first,

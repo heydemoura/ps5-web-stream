@@ -26,7 +26,8 @@ SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \
            $(SRCDIR)/http.c \
            $(SRCDIR)/audio.c $(SRCDIR)/status.c $(SRCDIR)/settings.c
 GEN     := $(GENDIR)/web_index.h $(GENDIR)/web_player.h $(GENDIR)/web_app.h \
-           $(GENDIR)/web_flv.h $(GENDIR)/web_flv_license.h
+           $(GENDIR)/web_flv.h $(GENDIR)/web_flv_license.h \
+           $(GENDIR)/web_videojs.h $(GENDIR)/web_videojs_license.h $(GENDIR)/web_player_css.h
 
 CFLAGS  := -Wall -Wextra -Werror -O2 -g -rdynamic -pthread -I$(SRCDIR)
 LDFLAGS := -pthread
@@ -55,6 +56,15 @@ $(GENDIR)/web_flv.h: web/vendor/flv.min.js tools/embed.py
 
 $(GENDIR)/web_flv_license.h: web/vendor/flv.LICENSE tools/embed.py
 	python3 tools/embed.py $< $@ web_flv_license
+
+$(GENDIR)/web_videojs.h: web/vendor/videojs.min.js tools/embed.py
+	python3 tools/embed.py $< $@ web_videojs_js
+
+$(GENDIR)/web_videojs_license.h: web/vendor/videojs.LICENSE tools/embed.py
+	python3 tools/embed.py $< $@ web_videojs_license
+
+$(GENDIR)/web_player_css.h: web/player.css tools/embed.py
+	python3 tools/embed.py $< $@ web_player_css
 
 $(ELF): $(GEN) $(SRCS) $(wildcard $(SRCDIR)/*.h) FORCE
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)

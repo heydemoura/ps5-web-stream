@@ -8,6 +8,9 @@
 #include "gen/web_app.h"
 #include "gen/web_flv.h"
 #include "gen/web_flv_license.h"
+#include "gen/web_videojs.h"
+#include "gen/web_videojs_license.h"
+#include "gen/web_player_css.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -266,6 +269,12 @@ handle_request(http_server *s, int fd) {
     send_bytes(fd, "200 OK", "text/html; charset=utf-8", web_index_html, web_index_html_len);
   } else if (!strcmp(path, "/player") || !strcmp(path, "/player/")) {
     send_bytes(fd, "200 OK", "text/html; charset=utf-8", web_player_html, web_player_html_len);
+  } else if (!strcmp(path, "/vendor/videojs.min.js")) {
+    send_bytes(fd, "200 OK", "application/javascript", web_videojs_js, web_videojs_js_len);
+  } else if (!strcmp(path, "/vendor/videojs.LICENSE")) {
+    send_bytes(fd, "200 OK", "text/plain; charset=utf-8", web_videojs_license, web_videojs_license_len);
+  } else if (!strcmp(path, "/player.css")) {
+    send_bytes(fd, "200 OK", "text/css", web_player_css, web_player_css_len);
   } else if (!strcmp(path, "/app.js")) {
     send_bytes(fd, "200 OK", "application/javascript", web_app_js, web_app_js_len);
   } else if (!strcmp(path, "/settings")) {

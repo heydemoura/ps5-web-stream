@@ -1,36 +1,36 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PS5 · Live player</title>
-<style>
-  *{box-sizing:border-box}
-  html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;color:#fff;font:14px/1.5 system-ui,sans-serif}
-  video{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
-  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:32px;text-align:center;pointer-events:none;color:#d9e2f0;background:rgba(0,0,0,.28)}
-  .toolbar{position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));display:flex;gap:8px;align-items:center;flex-wrap:wrap;pointer-events:none}
-  .toolbar>*{pointer-events:auto}
-  button,a,.status{background:rgba(15,20,30,.88);color:#fff;border:1px solid #4b5668;border-radius:8px;padding:10px 14px;min-height:44px;font:inherit;text-decoration:none}
-  button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
-  button:focus-visible,a:focus-visible{outline:2px solid #fff;outline-offset:3px}
-  .status{margin-right:auto;display:flex;align-items:center;gap:9px}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#aab5c6}
-  .dot.live{background:#39d98a}.dot.err{background:#ffb020}
-  @media(max-width:500px){.status{flex-basis:100%;padding:6px 10px;min-height:32px}button,a{padding:10px}}
-</style>
-</head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>PS5 · Live player</title><link rel="stylesheet" href="/player.css"></head>
 <body data-player="fullscreen">
-<video id="v" autoplay muted playsinline controls aria-label="Live PS5 video"></video>
-<div class="overlay" id="ov">Connecting to console…</div>
-<nav class="toolbar" aria-label="Player controls">
-  <span class="status"><span id="dot" class="dot" aria-hidden="true"></span><span id="state" role="status" aria-live="polite">Connecting…</span></span>
-  <button id="play">Stop</button>
-  <button id="mute" disabled>Unmute</button>
-  <button id="reload">Reconnect</button>
-  <a href="/">Dashboard</a>
-</nav>
+<live-video-player>
+<media-container class="console-player" aria-label="PS5 live player">
+  <video id="v" autoplay muted playsinline aria-label="Live PS5 video"></video>
+  <div class="overlay" id="ov">Connecting to console…</div>
+  <div class="player-heading"><span class="brand">PS5 <span>LIVE</span></span><span class="status"><span id="dot" class="dot"></span><span id="state" role="status" aria-live="polite">Connecting…</span></span></div>
+  <div class="player-controls" aria-label="Player controls">
+    <media-play-button id="playback" title="Play or pause"><span class="play-icon" aria-hidden="true">▶</span><span class="pause-icon" aria-hidden="true">Ⅱ</span></media-play-button>
+    <button id="mute" disabled>Unmute</button>
+    <media-volume-slider label="Volume" class="volume"><media-slider-track><media-slider-fill></media-slider-fill></media-slider-track><media-slider-thumb></media-slider-thumb></media-volume-slider>
+    <span class="control-spacer"></span>
+    <details id="quality-menu" class="quality-menu">
+      <summary title="Player settings">Settings</summary>
+      <form id="settings-form" class="settings-popover">
+        <label for="resolution">Capture resolution</label>
+        <select id="resolution" name="resolution">
+          <option value="4k">4K · 60 fps</option><option value="1440p">1440p · 60 fps</option><option value="1080p" selected>1080p · 60 fps</option><option value="720p">720p · 60 fps</option>
+        </select>
+        <button id="apply" type="submit">Apply resolution</button>
+        <p id="settings-message" role="status" aria-live="polite">Checking capture settings…</p>
+        <p class="hint">Changes apply to all viewers.</p>
+        <button id="play" type="button" title="Stop streaming">Stop</button>
+      </form>
+    </details>
+    <button id="reload" title="Reconnect to live stream">↻<span class="sr-only"> Reconnect</span></button>
+    <media-pip-button title="Picture in picture"><span aria-hidden="true">▣</span></media-pip-button>
+    <media-fullscreen-button title="Fullscreen"><span aria-hidden="true">⛶</span></media-fullscreen-button>
+  </div>
+</media-container>
+</live-video-player>
+<script src="/vendor/videojs.min.js"></script>
 <script src="/vendor/flv.min.js"></script>
 <script src="/app.js"></script>
-</body>
-</html>
+</body></html>

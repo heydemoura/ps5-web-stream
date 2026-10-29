@@ -123,7 +123,7 @@ function test(name, run) { cases.push({name, run}); }
 
 test('fullscreen player autoplays muted without a gesture and skips dashboard-only requests', async () => {
   const h = harness({fullscreen:true}); await settle();
-  assert.equal(h.node('settings-form'), null, 'Fullscreen DOM must not invent dashboard controls');
+  assert(h.node('settings-form'), 'Fullscreen player includes capture settings');
   assert.equal(h.players.length, 1);
   assert.equal(h.playCalls, 1);
   assert.equal(h.video.muted, true);

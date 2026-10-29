@@ -81,6 +81,13 @@ try:
     assert headers[b"content-type"] == b"application/javascript"
     status, _, license_body = request("/vendor/flv.LICENSE")
     assert status == 200 and b"Apache License" in license_body
+    status, headers, body = request("/vendor/videojs.min.js")
+    assert status == 200 and len(body) > 50000
+    assert headers[b"content-type"] == b"application/javascript"
+    assert request("/vendor/videojs.LICENSE")[0] == 200
+    status, headers, body = request("/player.css")
+    assert status == 200 and headers[b"content-type"] == b"text/css"
+    assert b".player-controls" in body
     status, _, body = request("/log")
     assert status == 200 and b"http fixture ready" in body
     for path in ("/indexgarbage", "/live.flvgarbage", "/status/x", "/../status"):

@@ -18,3 +18,15 @@ SHA-256 of the vendored JavaScript:
 ```
 733b9b325dbc59871a652c0a84f2f285a2cfd06cf2efcedcd87cb1e194cd1e8f
 ```
+
+## Video.js
+
+`videojs.min.js` bundles the HTML custom-element primitives from
+`@videojs/html` **10.2.0**, using esbuild **0.28.2**. Entry point:
+`web/videojs-entry.js`; exact dependency integrity is in `package-lock.json`.
+Rebuild with `npm ci && npm run build:player`. The Apache-2.0 license is in
+`videojs.LICENSE`; bundled dependency notices are retained in the JavaScript.
+The components own playback, volume, fullscreen and picture-in-picture; flv.js
+continues to deliver H.264/AAC to the same native video element.
+
+Official documentation: https://videojs.org/docs/guides/installation/html

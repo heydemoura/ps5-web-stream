@@ -24,8 +24,10 @@ muted automatically, without pressing Play. Select **Unmute** for audio. If the
 browser blocks playback, use its video Play control. A browser with H.264/AAC
 MediaSource support is required.
 
-The dashboard at `/` has a preview, capture diagnostics and a resolution
-selector. Choose a resolution and select **Apply resolution**. This changes the
+Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
+mute, volume, reconnect, picture-in-picture and fullscreen. Open **Settings**
+inside the player to choose a resolution, select **Apply resolution**, or Stop
+the stream. The dashboard at `/` also shows capture diagnostics. This changes the
 console capture for **all viewers**; connected players reconnect automatically.
 Changing the selector alone does not apply it. Requested settings remain in
 memory for the current payload session; restarting the payload selects 1080p.
@@ -63,7 +65,8 @@ to a continuous audio/video timeline, including capture restarts.
 
 One capture loop serves up to **eight media viewers**. Each has a bounded queue;
 slow viewers resume at a keyframe with codec headers without blocking capture.
-The HTML, application JavaScript and pinned flv.js player are embedded in the
+The HTML, CSS, application JavaScript, pinned Video.js components and flv.js
+transport are embedded in the
 ELF, so no CDN is needed. Capture failures and pending changes remain visible;
 the player shows “live” only after playback advances.
 
@@ -176,3 +179,10 @@ resolved at runtime. Project code is GPLv3+ (`LICENSE`). The vendored flv.js
 player is Apache-2.0; see its [license and provenance](web/vendor/README.md).
 
 [sdk]: https://github.com/ps5-payload-dev/sdk
+
+### Rebuild the Video.js bundle
+
+The checked-in bundle keeps payload builds independent of Node.js and CDNs.
+To update player imports, run `npm ci` then `npm run build:player`; commit the
+lockfile and generated `web/vendor/videojs.min.js` together. The payload serves
+all assets locally, including `/player.css` and `/vendor/videojs.min.js`.

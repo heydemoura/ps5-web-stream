@@ -45,6 +45,7 @@
   }
   function render(){
     playButton.textContent = wanted ? 'Stop' : 'Play';
+    playButton.hidden = !wanted;
     if (!sourceReady()) {
       setState(status && status.capture_state === 'error' ? 'capture unavailable' : 'waiting for capture',
         status && status.capture_state === 'error' ? 'err' : '');
@@ -140,6 +141,26 @@
     render();
     startPlayer();
   };
+  var playbackControl = document.getElementById('playback');
+  function requestPlayback(){
+    if (!wanted) {
+      wanted = true; previewIssue = null; playBlocked = false; retryAfter = 0;
+      startPlayer(); render();
+    }
+  }
+  if (playbackControl) {
+    playbackControl.addEventListener('click', requestPlayback, true);
+    playbackControl.addEventListener('keydown', function(event){
+      if (event.key === ' ' || event.key === 'Enter') requestPlayback();
+    }, true);
+  }
+  var qualityMenu = document.getElementById('quality-menu');
+  if (qualityMenu) qualityMenu.addEventListener('keydown', function(event){
+    if (event.key === 'Escape') {
+      qualityMenu.open = false;
+      qualityMenu.querySelector('summary').focus();
+    }
+  });
   document.getElementById('reload').onclick = function(){
     wanted = true;
     previewIssue = null; playBlocked = false;

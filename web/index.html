@@ -1,119 +1,40 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PS5 HDMI Stream</title>
-<style>
-  :root{
-    --bg:#0b0d12; --panel:#151922; --panel2:#1c2230; --line:#28303f;
-    --fg:#e8ecf4; --muted:#8b95a7; --accent:#4f8cff; --ok:#39d98a; --warn:#ffb020;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:12px;padding:16px 20px;
-    border-bottom:1px solid var(--line);background:var(--panel)}
-  header h1{font-size:17px;margin:0;font-weight:600}
-  .dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
-  .dot.live{background:var(--ok);box-shadow:0 0 0 4px rgba(57,217,138,.15)}
-  .dot.err{background:var(--warn)}
-  .wrap{max-width:1100px;margin:0 auto;padding:20px;display:grid;gap:20px}
-  .video-card{background:#000;border:1px solid var(--line);border-radius:12px;
-    overflow:hidden;position:relative;aspect-ratio:16/9}
-  video{width:100%;height:100%;display:block;background:#000}
-  .overlay{position:absolute;inset:0;display:flex;align-items:center;
-    justify-content:center;color:var(--muted);font-size:14px;text-align:center;
-    padding:24px;pointer-events:none}
-  .controls{display:flex;gap:10px;flex-wrap:wrap}
-  button{background:var(--accent);color:#fff;border:0;border-radius:8px;
-    padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
-  button.ghost{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
-  button:active{transform:translateY(1px)}
-  button:disabled{opacity:.45;cursor:default}
-  button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
-  .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
-    color:var(--muted);margin:0 0 12px}
-  .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;
-    border-bottom:1px dashed var(--line);font-size:14px}
-  .kv:last-child{border:0}
-  .kv span:first-child{color:var(--muted)}
-  code{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
-    padding:3px 8px;font-size:13px;word-break:break-all;user-select:all}
-  .copy{display:flex;align-items:center;gap:8px;margin-top:6px}
-  pre{background:#0a0c10;border:1px solid var(--line);border-radius:10px;padding:12px;
-    font-size:12px;max-height:220px;overflow:auto;color:var(--muted);margin:0;
-    white-space:pre-wrap}
-  a{color:#93b9ff}
-  button,a,select{min-height:44px}
-  select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;max-width:100%}
-  select:focus-visible,a:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
-  label{display:block;margin-bottom:8px}
-  .settings-controls{display:flex;gap:10px;flex-wrap:wrap}
-  #settings-message{font-size:13px;color:#b2bdcf;min-height:40px}
-  .panel{min-width:0}
-  .copy{overflow-wrap:anywhere}
-  footer{color:var(--muted);font-size:12px;text-align:center;padding:0 20px 28px}
-</style>
-</head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>PS5 · Live player</title><link rel="stylesheet" href="/player.css"></head>
 <body>
-<header>
-  <span class="dot" id="dot"></span>
-  <h1>PS5 HDMI Stream</h1>
-  <span id="state" role="status" aria-live="polite" style="color:var(--muted);font-size:13px">connecting…</span>
-</header>
-
-<div class="wrap">
-  <div class="video-card">
-    <video id="v" controls autoplay muted playsinline></video>
-    <div class="overlay" id="ov">Press Play to start the live preview.</div>
-  </div>
-
-  <div class="controls">
-    <button id="play">▶ Play preview</button>
-    <button id="reload" class="ghost">↻ Reconnect</button>
-    <button id="mute" class="ghost" disabled>🔇 Unmute</button>
-  </div>
-
-  <div class="grid">
-    <div class="panel">
-      <h2>Stream</h2>
-      <div class="kv"><span>Resolution</span><span id="res">—</span></div>
-      <div class="kv"><span>Frame rate</span><span id="fps">—</span></div>
-      <div class="kv"><span>Audio</span><span id="aud">—</span></div>
-      <div class="kv"><span>Viewers</span><span id="cli">—</span></div>
-    </div>
-    <div class="panel">
-      <h2>Capture settings</h2>
-      <form id="settings-form">
+<header class="page-heading"><div><h1>PS5 HDMI Stream</h1><p>Your console, live.</p></div><a href="/player">Open fullscreen player ↗</a></header>
+<main class="wrap"><live-video-player>
+<media-container class="console-player" aria-label="PS5 live player">
+  <video id="v" autoplay muted playsinline aria-label="Live PS5 video"></video>
+  <div class="overlay" id="ov">Connecting to console…</div>
+  <div class="player-heading"><span class="brand">PS5 <span>LIVE</span></span><span class="status"><span id="dot" class="dot"></span><span id="state" role="status" aria-live="polite">Connecting…</span></span></div>
+  <div class="player-controls" aria-label="Player controls">
+    <media-play-button id="playback" title="Play or pause"><span class="play-icon" aria-hidden="true">▶</span><span class="pause-icon" aria-hidden="true">Ⅱ</span></media-play-button>
+    <button id="mute" disabled>Unmute</button>
+    <media-volume-slider label="Volume" class="volume"><media-slider-track><media-slider-fill></media-slider-fill></media-slider-track><media-slider-thumb></media-slider-thumb></media-volume-slider>
+    <span class="control-spacer"></span>
+    <details id="quality-menu" class="quality-menu">
+      <summary title="Player settings">Settings</summary>
+      <form id="settings-form" class="settings-popover">
         <label for="resolution">Capture resolution</label>
-        <div class="settings-controls">
-          <select id="resolution" name="resolution">
-            <option value="4k">4K · 3840 × 2160</option>
-            <option value="1440p">1440p · 2560 × 1440</option>
-            <option value="1080p" selected>1080p · 1920 × 1080</option>
-            <option value="720p">720p · 1280 × 720</option>
-          </select>
-          <button id="apply" type="submit">Apply resolution</button>
-        </div>
+        <select id="resolution" name="resolution">
+          <option value="4k">4K · 60 fps</option><option value="1440p">1440p · 60 fps</option><option value="1080p" selected>1080p · 60 fps</option><option value="720p">720p · 60 fps</option>
+        </select>
+        <button id="apply" type="submit">Apply resolution</button>
         <p id="settings-message" role="status" aria-live="polite">Checking capture settings…</p>
+        <p class="hint">Changes apply to all viewers.</p>
+        <button id="play" type="button" title="Stop streaming">Stop</button>
       </form>
-      <p><a href="/player" target="_blank" rel="noopener">Open fullscreen player ↗</a></p>
-      <code id="player-link"></code>
-    </div>
+    </details>
+    <button id="reload" title="Reconnect to live stream">↻<span class="sr-only"> Reconnect</span></button>
+    <media-pip-button title="Picture in picture"><span aria-hidden="true">▣</span></media-pip-button>
+    <media-fullscreen-button title="Fullscreen"><span aria-hidden="true">⛶</span></media-fullscreen-button>
   </div>
-
-  <div class="panel">
-    <h2>Payload log</h2>
-    <pre id="log">…</pre>
-  </div>
-</div>
-
-<footer>Served from the console · <a href="/live.flv">/live.flv</a> · <a href="/status">/status</a> · <a href="/log">/log</a></footer>
-
+</media-container>
+</live-video-player>
+<section class="stream-info" aria-label="Stream information"><span>Video <strong id="res">—</strong></span><span>Frame rate <strong id="fps">—</strong></span><span>Audio <strong id="aud">—</strong></span><span>Viewers <strong id="cli">—</strong></span></section>
+<details class="log-panel"><summary>Payload log</summary><pre id="log">…</pre></details>
+</main><footer>Served from your console · <a href="/status">Stream status</a></footer>
+<script src="/vendor/videojs.min.js"></script>
 <script src="/vendor/flv.min.js"></script>
 <script src="/app.js"></script>
-</body>
-</html>
+</body></html>
