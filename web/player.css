@@ -29,3 +29,19 @@ body[data-player=fullscreen]{width:100vw;height:100dvh;overflow:hidden;backgroun
 @media(forced-colors:active){.player-controls,.brand,.status,.settings-popover{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none}.player-controls button,.player-controls summary{color:ButtonText}.settings-popover #apply{background:ButtonFace;color:ButtonText}}
 /* URL policy overrides Video.js visibility, focus, hover, and fullscreen states. */
 html[data-controls=hidden] .player-controls,html[data-controls=hidden] .player-heading{display:none!important}
+
+@media (hover:hover) and (pointer:fine){
+  .console-player:not(:hover):not(:focus-within) .player-controls,
+  .console-player:not(:hover):not(:focus-within) .player-heading{
+    opacity:0;
+    pointer-events:none;
+  }
+  .console-player .player-controls,
+  .console-player .player-heading{
+    transition:opacity .28s ease;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .console-player .player-controls,
+  .console-player .player-heading{transition:none}
+}
