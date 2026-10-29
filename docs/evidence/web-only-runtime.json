@@ -1,0 +1,44 @@
+{
+  "observed_at_utc": "2026-10-29T02:56:54.107920+00:00",
+  "status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 10609,
+    "audio_frames": 8844,
+    "last_video_ms": 190057,
+    "last_audio_ms": 190102,
+    "video_age_ms": 11,
+    "audio_age_ms": 4,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 1,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 10,
+    "capture_revision": 10,
+    "stream_revision": 10,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  },
+  "current_instance_ports_open": {
+    "8081": true,
+    "1936": false
+  },
+  "4k_audio_volume_db": {
+    "mean": -38.0,
+    "peak": -26.1
+  },
+  "recording_sha256": {
+    "720p": "94c3da4255c8c5e94176253b704e4b12be62ea9caecaf56d8b751a4156006404",
+    "1080p": "4ce5768d9953779e66e3cf085307bd2a1d3dca2431d9ba5cce97df8d6c8341f4",
+    "1440p": "fafa60a6429cffd64aa5862413ed804d14dad31f033af24349fc51422ea14ba1",
+    "4k": "e30810b3da6d84a5a1e44d41ff8ee978efc05bdfbe40e710a2ee2a84e8ed4bd3"
+  },
+  "captured_media_committed": false
+}

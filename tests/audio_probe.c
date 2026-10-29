@@ -1,6 +1,7 @@
 /* Short-lived on-console probe. Emits only /data/ps5hs-audio-probe.{log,aac}.
- * Build with src/audio.c; the main application is not linked. */
+ * Holds a video session to acquire the same resource as production audio. */
 #include "audio.h"
+#include "avcap.h"
 #include "log.h"
 #include <dlfcn.h>
 #include <stdint.h>
@@ -33,19 +34,17 @@ int main(void) {
   void *ipmi = dlopen("/system/common/lib/libSceIpmi.sprx", RTLD_LAZY | RTLD_GLOBAL);
   void *ajmi = dlopen("/system/common/lib/libSceAjmi.sprx", RTLD_LAZY | RTLD_GLOBAL);
   LOG("dependencies: ipmi=%p ajmi=%p", ipmi, ajmi);
-  void *avcap = dlopen("/system/common/lib/libSceAvcap2.sprx", RTLD_LAZY | RTLD_GLOBAL);
-  int (*init)(void) = avcap ? dlsym(avcap, "sceAvcap2Initialize") : NULL;
-  int (*term)(void) = avcap ? dlsym(avcap, "sceAvcap2Terminate") : NULL;
   audio_capture *capture = NULL;
   audio_encoder *encoder = NULL;
-  int initialized = 0, result = 1;
+  int result = 1;
   unsigned reads = 0, packets = 0, empty = 0;
-  if (!init || !term) { LOG("avcap symbols missing"); goto done; }
-  int r = init();
+  int r = avcap_load();
+  if (!r) r = avcap_init();
   LOG("avcap Initialize -> 0x%x", r);
   if (r) goto done;
-  initialized = 1;
-  capture = audio_capture_open();
+  avcap_config cfg = {1920,1080,60,8000,0};
+  if (avcap_open(&cfg)) goto done;
+  capture = audio_capture_open(avcap_resource_id());
   encoder = audio_encoder_open(128000);
   if (!capture || !encoder) goto done;
   uint64_t begin = now_us(), first_pts = 0, last_pts = 0;
@@ -81,7 +80,7 @@ int main(void) {
 done:
   audio_capture_close(capture);
   audio_encoder_close(encoder);
-  if (initialized) term();
+  avcap_terminate();
   LOG("audio probe exit=%d", result);
   fwrite(g_log_ring, 1, g_log_len, log);
   fclose(log);

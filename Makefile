@@ -23,7 +23,7 @@ ELF     := ps5-hdmi-stream.elf
 SRCDIR  := src
 GENDIR  := $(SRCDIR)/gen
 SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \
-           $(SRCDIR)/http.c $(SRCDIR)/scanin.c \
+           $(SRCDIR)/http.c \
            $(SRCDIR)/audio.c $(SRCDIR)/status.c $(SRCDIR)/settings.c
 GEN     := $(GENDIR)/web_index.h $(GENDIR)/web_player.h $(GENDIR)/web_app.h \
            $(GENDIR)/web_flv.h $(GENDIR)/web_flv_license.h
@@ -71,11 +71,11 @@ test: host-test
 # Finite hardware probes: building does not deploy them.
 probe-audio:
 	@mkdir -p build
-	$(CC) $(CFLAGS) tests/audio_probe.c src/audio.c $(LDFLAGS) -o build/audio-probe.elf
+	$(CC) $(CFLAGS) tests/audio_probe.c src/audio.c src/avcap.c $(LDFLAGS) -o build/audio-probe.elf
 
 probe-video:
 	@mkdir -p build
-	$(CC) $(CFLAGS) tests/video_probe.c src/avcap.c src/scanin.c $(LDFLAGS) -o build/video-probe.elf
+	$(CC) $(CFLAGS) tests/video_probe.c src/avcap.c $(LDFLAGS) -o build/video-probe.elf
 
 host-test: $(GEN)
 	@mkdir -p build

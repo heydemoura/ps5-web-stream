@@ -1,6 +1,5 @@
 /* Copyright (C) 2026 heydemoura */
 #include "avcap.h"
-#include "scanin.h"
 #include "log.h"
 #include <dlfcn.h>
 #include <limits.h>
@@ -13,7 +12,7 @@
 #define AVCAP_OVERRUN ((int)0x81950004)
 
 static void *g_lib, *g_ipmi, *g_video;
-static int g_initialized, g_err, g_use_scanin;
+static int g_initialized, g_err;
 static int (*p_Initialize)(void), (*p_Terminate)(void);
 static int (*p_OpenVideo)(void **, void *, int);
 static int (*p_Start)(void *), (*p_Stop)(void *), (*p_Close)(void *);
@@ -31,20 +30,35 @@ static int (*p_RaCheck)(int, const char *);
 static int (*p_RaState)(int, const char *, void *, int);
 static int (*p_RaClear)(int);
 static int g_ra_registered, g_ra_owned;
-static atomic_int g_ra_event;
+static atomic_int g_ra_event, g_ra_resource, g_ra_wait_running;
 static uint8_t g_headers[264];
 static size_t g_headers_len;
 static uint64_t g_keyframe_clock_us;
 static int g_have_keyframe_clock;
 #define KEYFRAME_INTERVAL_US UINT64_C(2000000)
 #define VIDEO_RESOURCE 0xb4
+#define VIDEO_RESOURCE_4K 0xb6
 
 static void resource_callback(int id, int event, void *info) {
-  if (id == VIDEO_RESOURCE && event == 1 && info)
-    atomic_store(&g_ra_event, *(const uint8_t *)info ? 1 : -1);
+  if (id != atomic_load(&g_ra_resource) || event != 1 || !info) return;
+  /* The completion includes up to five 32-byte state names. Match both the
+   * resource and requested state so a late RUNNING cannot finish a STOP wait. */
+  const uint8_t *result = info;
+  uint32_t count;
+  memcpy(&count, result + 4, sizeof(count));
+  if (count > 5) return;
+  const char *expected = atomic_load(&g_ra_wait_running) ? "RUNNING" : "STOP";
+  for (uint32_t i=0; i<count; ++i) {
+    if (!strncmp((const char *)result + 0x18 + i*0x20, expected, 0x20)) {
+      atomic_store(&g_ra_event, *result == 1 ? 1 : -1);
+      return;
+    }
+  }
 }
 static int resource_wait(void) {
-  for (unsigned i=0; i<200; ++i) {
+  /* A 4K allocation can renegotiate other media resources. On the console it
+   * takes longer than the one-second wait sufficient for the smaller tap. */
+  for (unsigned i=0; i<3000; ++i) {
     int event = atomic_load(&g_ra_event);
     if (event) return event > 0 ? 0 : (int)0x81950008;
     usleep(5000);
@@ -53,14 +67,21 @@ static int resource_wait(void) {
 }
 static void resource_release(void) {
   if (g_ra_owned) {
+    atomic_store(&g_ra_wait_running, 0);
     atomic_store(&g_ra_event, 0);
-    int r = p_RaState(VIDEO_RESOURCE, "STOP", NULL, getpid());
+    int resource = atomic_load(&g_ra_resource);
+    int r = p_RaState(resource, "STOP", NULL, getpid());
     if (r >= 0) r = resource_wait();
-    LOG("avcap: ResourceArbitrator STOP -> 0x%x", r);
-    g_ra_owned = 0;
+    LOG("avcap: ResourceArbitrator 0x%x STOP -> 0x%x", resource, r);
+    if (r >= 0) g_ra_owned = 0;
   }
 }
-static int resource_acquire(void) {
+static int resource_acquire(int resource) {
+  /* Do not replace an allocation whose release has not completed. */
+  if (g_ra_owned) {
+    resource_release();
+    if (g_ra_owned) return (int)0x81950008;
+  }
   if (!g_ra_lib) {
     g_ra_lib = dlopen("libSceResourceArbitrator.sprx", RTLD_NOW | RTLD_GLOBAL);
     if (!g_ra_lib) return -1;
@@ -70,30 +91,35 @@ static int resource_acquire(void) {
     p_RaClear = dlsym(g_ra_lib, "sceResourceArbitratorClearCallback");
   }
   if (!p_RaSet || !p_RaCheck || !p_RaState || !p_RaClear) return -1;
+  atomic_store(&g_ra_resource, resource);
+  int registered_bit = resource == VIDEO_RESOURCE_4K ? 2 : 1;
   int r;
   /* Callback registration belongs to the client lifetime, not each capture.
    * Repeated clear/register cycles can block inside the firmware on a switch. */
-  if (!g_ra_registered) {
-    r = p_RaSet(VIDEO_RESOURCE, resource_callback, NULL);
+  if (!(g_ra_registered & registered_bit)) {
+    r = p_RaSet(resource, resource_callback, NULL);
     if (r < 0) return r;
-    g_ra_registered = 1;
+    g_ra_registered |= registered_bit;
   }
-  r = p_RaCheck(VIDEO_RESOURCE, "RUNNING");
-  if (r <= 0) { resource_release(); return r < 0 ? r : (int)0x81950008; }
-  if (r != 2) {
+  r = p_RaCheck(resource, "RUNNING");
+  /* Only 1 is the observed executable result. In particular, 2 does not
+   * establish that this client already owns a RUNNING resource. */
+  if (r != 1) return r < 0 ? r : (int)0x81950008;
+  {
+    atomic_store(&g_ra_wait_running, 1);
     atomic_store(&g_ra_event, 0);
-    r = p_RaState(VIDEO_RESOURCE, "RUNNING", NULL, getpid());
+    r = p_RaState(resource, "RUNNING", NULL, getpid());
     if (r < 0) { resource_release(); return r; }
     g_ra_owned = 1;
     r = resource_wait();
     if (r < 0) { resource_release(); return r; }
   }
-  LOG("avcap: ResourceArbitrator 0xb4 RUNNING");
+  LOG("avcap: ResourceArbitrator 0x%x RUNNING", resource);
   return 0;
 }
 
 int avcap_last_error(void) { return g_err; }
-void avcap_set_scanin(int on) { g_use_scanin = !!on; }
+int avcap_resource_id(void) { return g_video ? atomic_load(&g_ra_resource) : -1; }
 
 static void *resolve(const char *name) {
   void *p = dlsym(g_lib, name);
@@ -148,7 +174,7 @@ static void set32(uint8_t *p, size_t off, uint32_t value) {
  * mandatory. Output mode is queried after Initialize. The source resource
  * must be RUNNING before OpenVideo; see docs/AVCAP2.md for runtime evidence. */
 static void video_params(uint8_t p[0x2e0], const avcap_config *cfg, int mode,
-                         unsigned resolution) {
+                         unsigned resolution, int resource) {
   static const unsigned sizes[][2] = {
     {0,0x2e0},{8,0x28},{0x30,0x58},{0x38,0x18},{0x50,0x10},
     {0x60,0x18},{0x88,0x30},{0xb8,0xe0},{0xc0,0x20},{0xe0,0x20},
@@ -162,7 +188,7 @@ static void video_params(uint8_t p[0x2e0], const avcap_config *cfg, int mode,
   set32(p, 0x18, resolution);
   set32(p, 0x1c, cfg->fps == 60);
   set32(p, 0x24, 0); /* AVC */
-  set32(p, 0x28, VIDEO_RESOURCE); /* active ResourceArbitrator ID */
+  set32(p, 0x28, (uint32_t)resource); /* active ResourceArbitrator ID */
   set32(p, 0x40, 1); set32(p, 0x44, 245760u/(unsigned)cfg->fps/60u);
   set32(p, 0x48, 1); set32(p, 0x4c, 1400*8);
   /* The reference-picture budget participates in native AVC level selection.
@@ -198,15 +224,13 @@ int avcap_open(const avcap_config *cfg) {
   int r = p_GetVideoOutMode(&mode);
   LOG("avcap: GetVideoOutMode -> 0x%x mode=0x%x", r, mode);
   if (r < 0) return g_err = r;
-  if (g_use_scanin) {
-    r = scanin_enable(11);
-    LOG("avcap: scanin_enable -> 0x%x", r);
-    if (r < 0) return g_err = r;
-  }
-  r = resource_acquire();
+  /* Firmware's RemotePlay 4K allocation requests a scaninType=3 tap. The
+   * default resource guarantees only 1080p; higher modes need the larger tap. */
+  int resource = resolution >= 5 ? VIDEO_RESOURCE_4K : VIDEO_RESOURCE;
+  r = resource_acquire(resource);
   if (r < 0) return g_err = r;
   uint8_t params[0x2e0];
-  video_params(params, cfg, mode, resolution);
+  video_params(params, cfg, mode, resolution, resource);
   void *handle = NULL;
   r = p_OpenVideo(&handle, params, 0);
   LOG("avcap: OpenVideo %dx%d@%d %d kbps mode=0x%x -> 0x%x", cfg->width,
@@ -314,6 +338,8 @@ void avcap_close(void) {
 }
 void avcap_terminate(void) {
   avcap_close();
-  if (g_ra_registered) { p_RaClear(VIDEO_RESOURCE); g_ra_registered = 0; }
+  if (g_ra_registered & 1) p_RaClear(VIDEO_RESOURCE);
+  if (g_ra_registered & 2) p_RaClear(VIDEO_RESOURCE_4K);
+  g_ra_registered = 0;
   if (g_initialized) { p_Terminate(); g_initialized = 0; }
 }

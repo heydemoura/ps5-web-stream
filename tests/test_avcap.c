@@ -4,11 +4,12 @@
 char g_log_ring[LOG_RING_SIZE];
 size_t g_log_len;
 pthread_mutex_t g_log_mtx = PTHREAD_MUTEX_INITIALIZER;
-int scanin_enable(int index) { (void)index; assert(0); return -1; }
 static int initialized, terminated, starts, stops, closes, running, registered;
 static int open_error, start_error, header_error, read_result = 5, executable = 1;
-static int key_requests, key_error, next_idr = 1;
+static int key_requests, key_error, next_idr = 1, release_error;
+static unsigned registrations[2], releases[2];
 static uint32_t expected_resolution = 4, expected_bitrate = 8000000, expected_fps = 60;
+static int expected_resource(void) { return expected_resolution >= 5 ? 0xb6 : 0xb4; }
 static uint64_t next_pts = UINT64_C(240000)*20000000+4004;
 static uint64_t now_tsc = UINT64_C(240000)*20000000+4004;
 static uint64_t read_tsc(void) { return now_tsc; }
@@ -20,22 +21,40 @@ static int init(void) { ++initialized; return 0; }
 static int term(void) { ++terminated; return 0; }
 static int mode(int *out) { assert(initialized); *out=0x13c; return 0; }
 static int ra_set(int id, void (*fn)(int,int,void *), void *arg) {
-  assert(id==0xb4 && !arg); registered=1; callback=fn; return 0;
+  assert(id==expected_resource() && !arg);
+  unsigned slot = id==0xb6;
+  assert(!(registered & (1<<slot)));
+  registered |= 1<<slot; registrations[slot]++; callback=fn; return 0;
 }
 static int ra_check(int id,const char *state) {
-  assert(id==0xb4 && !strcmp(state,"RUNNING")); return executable;
+  assert(id==expected_resource() && !strcmp(state,"RUNNING")); return executable;
 }
 static int ra_state(int id,const char *state,void *arg,int pid) {
-  assert(id==0xb4 && !arg && pid==getpid());
-  running=!strcmp(state,"RUNNING"); uint8_t success=1; callback(id,1,&success); return 0;
+  assert(id==expected_resource() && !arg && pid==getpid());
+  if (!strcmp(state,"STOP") && release_error) return release_error;
+  running=!strcmp(state,"RUNNING");
+  if (!running) releases[id==0xb6]++;
+  /* A delayed callback for the other registered resource must not complete
+   * or fail the current negotiation. */
+  uint8_t info[0x18+0x20] = {0};
+  uint32_t count=1; memcpy(info+4,&count,sizeof(count));
+  strcpy((char *)info+0x18,state);
+  callback(id==0xb4 ? 0xb6 : 0xb4,1,info);
+  assert(atomic_load(&g_ra_event)==0);
+  strcpy((char *)info+0x18,running ? "STOP" : "RUNNING"); info[0]=1;
+  callback(id,1,info); assert(atomic_load(&g_ra_event)==0);
+  strcpy((char *)info+0x18,state);
+  callback(id,1,info); return 0;
 }
-static int ra_clear(int id) { assert(id==0xb4); registered=0; return 0; }
+static int ra_clear(int id) {
+  assert(id==0xb4 || id==0xb6); registered &= ~(1<<(id==0xb6)); return 0;
+}
 static int open_video(void **handle,void *p,int flag) {
   assert(!flag && running);
   assert(get32(p,0)==0x2e0 && get32(p,8)==0x28);
   assert(get32(p,0x14)==2 && get32(p,0x18)==expected_resolution &&
          get32(p,0x1c)==(expected_fps==60));
-  assert(get32(p,0x24)==0 && get32(p,0x28)==0xb4 && get32(p,0x2a0)==0x13c);
+  assert(get32(p,0x24)==0 && get32(p,0x28)==(uint32_t)expected_resource() && get32(p,0x2a0)==0x13c);
   assert(get32(p,0xcc)==expected_bitrate &&
          get32(p,0xd0)==(uint64_t)expected_bitrate*1001/(expected_fps*1000));
   assert(get32(p,0x5c)==(expected_resolution==6 ? 4u : 9u));
@@ -70,9 +89,11 @@ int main(void) {
   p_ReadTsc=read_tsc; g_tsc_frequency=240000;
   p_RaSet=ra_set;p_RaCheck=ra_check;p_RaState=ra_state;p_RaClear=ra_clear;
   avcap_config cfg={1920,1080,60,8000,0};
+  assert(avcap_resource_id()==-1);
   assert(avcap_open(&cfg)==AVCAP_INVALID);
   assert(avcap_init()==0 && avcap_init()==0 && initialized==1);
   assert(avcap_open(&cfg)==0);
+  assert(avcap_resource_id()==0xb4);
   assert(avcap_open(&cfg)==AVCAP_INVALID); /* active handle cannot be overwritten */
   uint8_t buf[512];avcap_frame frame;
   read_result=AVCAP_EMPTY;assert(avcap_read_video(buf,sizeof(buf),&frame)==0);
@@ -103,7 +124,11 @@ int main(void) {
   assert(!running && registered && closes==2);header_error=0;
   start_error=(int)0x80c78000;assert(avcap_open(&cfg)==start_error);
   assert(!running && registered && closes==3);start_error=0;
-  executable=2;running=1;assert(avcap_open(&cfg)==0);
+  executable=2;running=1;
+  unsigned prior_releases=releases[0];
+  assert(avcap_open(&cfg)==(int)0x81950008);
+  avcap_close(); assert(running && releases[0]==prior_releases);
+  executable=1;running=0;assert(avcap_open(&cfg)==0);
   now_tsc += UINT64_C(240000)*60;
   next_pts+=480000;
   assert(avcap_read_video(buf,sizeof(buf),&frame)==1 && key_requests==2);
@@ -114,18 +139,35 @@ int main(void) {
   assert(frame.pts_us-first == 16683); /* delivery jitter never replaces source cadence */
   /* Reopening resets the request clock even if capture time advanced. */
   avcap_close();
-  assert(running && registered); /* never STOP a state this client did not acquire */
-  executable=1; running=0;
+  assert(!running && registered);
+  assert(avcap_open(&cfg)==0);
+  release_error=(int)0x819b0001;
+  avcap_close(); assert(g_ra_owned && running);
+  assert(avcap_open(&cfg)==(int)0x81950008); /* no new allocation before release */
+  release_error=0; avcap_close(); assert(!g_ra_owned && !running);
   static const avcap_config modes[] = {
     {1280,720,60,5000,0}, {1920,1080,60,8000,0},
-    {2560,1440,60,16000,0}, {3840,2160,30,32000,0}
+    {2560,1440,30,16000,0}, {3840,2160,30,32000,0}
   };
   for (unsigned i=0; i<4; i++) {
     expected_resolution=3+i; expected_bitrate=(uint32_t)modes[i].bitrate*1000;
     expected_fps=(uint32_t)modes[i].fps;
     assert(avcap_open(&modes[i])==0);
+    assert(avcap_resource_id()==expected_resource());
     avcap_close(); assert(!running && registered);
+    assert(avcap_resource_id()==-1);
   }
+  /* Return from 4K to 1080p, then revisit 4K without registering either
+   * callback twice or releasing a different resource. */
+  for (unsigned i=0; i<2; i++) {
+    const avcap_config *selected = &modes[i ? 3 : 1];
+    expected_resolution=i ? 6 : 4;
+    expected_bitrate=(uint32_t)selected->bitrate*1000;
+    expected_fps=(uint32_t)selected->fps;
+    assert(avcap_open(selected)==0);
+    avcap_close(); assert(!running && registered==3);
+  }
+  assert(registrations[0]==1 && registrations[1]==1 && releases[1]==3);
   avcap_terminate();avcap_terminate();assert(terminated==1 && !registered);
   puts("avcap: sequencing, RA cleanup, nonblocking status, headers, keyframe requests and timestamps pass");
   return 0;

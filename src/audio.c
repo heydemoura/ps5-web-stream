@@ -39,7 +39,8 @@ static void *load_library(const char *name) {
   return lib;
 }
 
-audio_capture *audio_capture_open(void) {
+audio_capture *audio_capture_open(int resource_id) {
+  if (resource_id < 0) return NULL;
   audio_capture *s = calloc(1, sizeof(*s));
   if (!s) return NULL;
   s->lib = load_library("libSceAvcap2.sprx");
@@ -67,8 +68,13 @@ audio_capture *audio_capture_open(void) {
   uint32_t params[0x38 / 4] = {0};
   params[0] = 0x38;
   params[2] = 0x18;
+  /* The second audio-device class has a per-client key while reading the same
+   * system mix. Type 0 can reuse another client's stale resource binding. */
+  params[4] = 2;
   params[5] = 2; /* Remote Play system mix */
-  params[7] = UINT32_MAX;
+  /* The producer checks this ResourceArbitrator ID on every PCM read.
+   * It must match the RUNNING video resource, including the 4K allocation. */
+  params[7] = (uint32_t)resource_id;
   int r = open_audio(&s->handle, params, 0);
   LOG("audio: OpenAudio -> 0x%x handle=0x%llx", r,
       (unsigned long long)s->handle);

@@ -86,9 +86,9 @@ void stream_status_audio(uint32_t ts) { (void)ts; audio_status_count++; }
 int avcap_load(void) { return 0; }
 int avcap_init(void) { init_count++; return 0; }
 int avcap_open(const avcap_config *cfg) { assert(cfg->fps == 60); return 0; }
+int avcap_resource_id(void) { return 0xb6; }
 void avcap_close(void) { video_closes++; }
 void avcap_terminate(void) { terminations++; }
-void avcap_set_scanin(int on) { assert(!on); }
 int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   assert(step_index < step_count);
   current = &steps[step_index++]; audio_index = 0;
@@ -101,7 +101,8 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   fr->keyframe = 0; /* IDR must be corroborated from NALs. */
   return 1;
 }
-audio_capture *audio_capture_open(void) {
+audio_capture *audio_capture_open(int resource_id) {
+  assert(resource_id==0xb6); /* the acquired resource is shared with audio */
   opened_audio++; return audio_open_fails ? NULL : &mock_capture;
 }
 void audio_capture_close(audio_capture *capture) {
@@ -234,6 +235,9 @@ static void test_entry_cleanup(void) {
   check_cleanup();
   assert(video_closes == 1 && terminations == 1 && init_count == 1);
   assert(g_bc.have_audio == 1 && !g_bc.avc_cfg_len && !g_bc.aac_cfg_len);
+  char settings_json[512];
+  assert(capture_settings_json(settings_json,sizeof(settings_json)));
+  assert(strstr(settings_json,"\"active_resolution\":null"));
 }
 int main(void) {
   broadcaster_init(&g_bc); g_bc.have_audio = 1;

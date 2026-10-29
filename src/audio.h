@@ -21,8 +21,9 @@ typedef struct {
 
 /* The caller owns sceAvcap2Initialize/Terminate and must keep the service
  * initialized until all video and audio handles have closed. These functions
- * open/start and stop/close only their own handle. No credential changes. */
-audio_capture *audio_capture_open(void);
+ * open/start and stop/close only their own handle. resource_id must remain
+ * RUNNING until audio closes (production shares avcap_resource_id()). */
+audio_capture *audio_capture_open(int resource_id);
 void audio_capture_close(audio_capture *capture);
 /* 1024 float32 stereo frames, 0 for empty/overrun, negative on failure.
  * pcm must have AUDIO_PCM_FLOATS elements. pts_us is the capture timestamp. */

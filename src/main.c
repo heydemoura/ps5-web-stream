@@ -43,7 +43,7 @@ static int capture_loop(uint64_t started, uint32_t revision) {
   audio_encoder *encoder = NULL;
   int result = -1;
   if (!annexb || !avcc) goto done;
-  audio = audio_capture_open();
+  audio = audio_capture_open(avcap_resource_id());
   encoder = audio_encoder_open(128000);
   if (!audio || !encoder) { LOG("main: audio capture/encoder unavailable"); goto done; }
   uint8_t asc[2];
@@ -172,12 +172,10 @@ static int parse_port(const char *s, int *port) {
 }
 int main(int argc, char **argv) {
   int http_port = DEF_HTTP_PORT;
-  int ports = 0, use_scanin = 0;
+  int ports = 0;
   for (int i = 1; i < argc; i++) {
-    if (!strcmp(argv[i], "--noscanin") || !strcmp(argv[i], "noscanin")) use_scanin = 0;
-    else if (!strcmp(argv[i], "--scanin")) use_scanin = 1;
-    else if (ports++ || parse_port(argv[i], &http_port)) {
-      fprintf(stderr, "Usage: %s [http_port] [--scanin]\n", argv[0]); return 1;
+    if (ports++ || parse_port(argv[i], &http_port)) {
+      fprintf(stderr, "Usage: %s [http_port]\n", argv[0]); return 1;
     }
   }
   signal(SIGPIPE, SIG_IGN); signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
@@ -189,7 +187,6 @@ int main(int argc, char **argv) {
   if (http_server_start(&g_bc, http_port)) {
     LOG("main: listener startup failed; exiting"); return 1;
   }
-  avcap_set_scanin(use_scanin);
   uint64_t started = now_ms();
   int initialized = 0;
   while (!stopping) {
@@ -208,6 +205,7 @@ int main(int argc, char **argv) {
     }
     if (!r) r = avcap_open(&cfg);
     if (!r) r = capture_loop(started, settings.revision);
+    capture_settings_end(settings.revision);
     avcap_close();
     broadcaster_reset(&g_bc);
     if (stopping) break;

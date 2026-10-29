@@ -1,37 +1,27 @@
 # libSceAvcap2 capture ABI and validation
 
-The production payload delivered **live 1920×1080 H.264 Main video and stereo
-48 kHz AAC-LC audio** from the test console on 2026-10-28. A 90.039-second
-simultaneous HTTP-FLV/RTMP capture contained 5351 video frames and 4218 AAC
-frames on each transport. Both files had identical SHA-256 hashes, monotonic
-decode timestamps, and clean full FFmpeg decodes. The stream reports
-`60000/1001` fps. See the [console stream results](evidence/console-streams-2026-10-28.json).
+The current payload serves native H.264 video and 48 kHz stereo AAC through
+HTTP-FLV, with a console-hosted dashboard and autoplay `/player` page. Its
+capture presets are 720p/1080p at nominal 60 fps and 1440p/3840×2160 at nominal
+30 fps. All four passed native H.264/AAC decoding on the test console. The
+[validation ledger](VALIDATION.md) distinguishes decoded console
+results from host mocks and records the current all-mode verification status.
+RTMP has been removed from the active implementation.
 
-Actual Chrome decoded video and audio, unmuted, reconnected and stopped
-successfully ([browser result](evidence/console-browser-2026-10-28.log)).
-An actual OBS Media Source played the RTMP stream with active audio meters;
-its 12.044-second recording decoded without errors. OBS re-encoded that
-recording at 30 fps, so this confirms reception and playback rather than
-native frame-rate preservation ([OBS result](evidence/obs-console-playback-2026-10-28.json)).
-These tests do not measure glass-to-glass latency or perceptual A/V alignment.
+Capture does not require a ShellCore Share permit or a separate scan-in helper.
+The earlier permit diagnosis came from querying `GetVideoOutMode` before
+`Initialize` and omitting required record sizes and an active ResourceArbitrator
+ID. Native `OpenVideo` negotiates the capture tap itself. The removed helper's
+IPMI method-24 transport acknowledgement did not establish a separate enable
+operation. No manual tap setup or kernel patch is part of the current flow.
+Cold-boot operation remains unverified.
 
-The earlier finite production-backend probe captured and decoded 177 video
-frames. Both runs requested nominal 60 fps and 8000 kbps. The encoded output is
-variable bitrate, so 8000 kbps is an encoder limit, not a measured constant
-output rate. Earlier evidence: [probe log](evidence/video-probe-2026-10-28.log),
-[FFprobe result](evidence/video-probe-ffprobe.json). The captured file SHA-256 is
-`f0c4485e9f8eae17d084b60b0babcb588f5d472eec047c40125b769870880f7c`.
-Console screenshots/video and proprietary binaries are not committed.
-
-This replaces the earlier diagnosis that capture required a ShellCore Share
-permit. That diagnosis was incorrect. `GetVideoOutMode` had been called before
-`Initialize`, and the video record omitted mandatory sizes and the active
-ResourceArbitrator ID. The working backend does not initialize Share or sweep
-permits. Successful production capture did not call `scanin_enable`.
-A prior diagnostic had enabled the read tap in the same console session.
-**Cold-boot capture remains unverified:** the successful tests do not establish
-whether that earlier action has a persistent effect. No scan-in mode change
-or kernel patch was used.
+The earlier 1080p implementation also passed a 90-second simultaneous HTTP/RTMP
+decode and OBS playback. Those results are
+[historical evidence](VALIDATION.md#historical-evidence--previous-rtmpobs-implementation),
+not verification of the current web-only binary or every capture preset.
+Console media and proprietary binaries are not committed. Successful decoding
+does not measure glass-to-glass latency or perceptual A/V alignment.
 
 ## Source and evidence scope
 
@@ -55,19 +45,35 @@ successful Hopper decompilation. Different firmware layouts remain untested.
 1. Load `libSceIpmi.sprx`, then `libSceAvcap2.sprx`.
 2. Call `sceAvcap2Initialize()` before querying output mode. The tested mode was
    `0x13c`; querying it after initialization succeeds.
-3. Register a ResourceArbitrator callback for resource `0xb4` (180), check
-   `sceResourceArbitratorIsExecutable(0xb4, "RUNNING")`, and request
-   `sceResourceArbitratorChangeState(0xb4, "RUNNING", NULL, getpid())` when needed.
-   Wait for event 1 with a successful result. The PID belongs to this state
-   request; it is **not** the capture record's resource ID.
+3. Select ResourceArbitrator resource `0xb4` (180) for 720p/1080p or `0xb6`
+   (182) for 1440p/4K. Register its callback, require
+   `sceResourceArbitratorIsExecutable(resource, "RUNNING") == 1`, then request
+   `sceResourceArbitratorChangeState(resource, "RUNNING", NULL, getpid())`.
+   Wait up to 15 seconds for the matching successful completion. Return value
+   2 from `IsExecutable` is ambiguous and is rejected; it does not prove that
+   this client already owns the resource. The PID belongs to the state request;
+   it is **not** the capture record's resource ID.
 4. Call `sceAvcap2OpenVideo(&handle, params, 0)` with the complete versioned
-   record, source 2, resource `0xb4`, and the current output mode.
+   record, source 2, the selected resource, and the current output mode.
 5. Obtain SPS/PPS using `sceAvcap2GetNonVclNalUnitStream(handle, &headers)`.
 6. Start, then read with `sceAvcap2ReadVideo(handle, buf, capacity, info, 1)`.
    Flag 1 makes the read nonblocking.
-7. Stop and close the video handle. Return resource `0xb4` to `"STOP"` only if
-   this client acquired that state, and clear its callback.
-8. Terminate the shared Avcap service only after video **and audio** close.
+7. Close audio before releasing its video resource. Stop and close video, then
+   request `"STOP"` only for an allocation this client acquired. Retain ownership
+   until a successful STOP completion; do not replace an unreleased allocation.
+8. Keep callback registrations across capture switches, because repeated
+   clear/register cycles can block in firmware. Clear them on final termination,
+   and terminate Avcap only after video **and audio** close.
+
+The callback ABI is `callback(int resource, int event, void *info)`. For event 1,
+the completion has a success byte at `info+0`, a state count at `+4`, and up to
+five 32-byte state names starting at `+0x18`. The backend matches both resource
+and requested state. A late RUNNING completion cannot satisfy a STOP wait, and
+a completion for the other allocation cannot unblock capture.
+
+The 180 allocation guarantees the smaller capture tap. The native higher-mode
+path uses allocation 182 with `scaninType=3`; both 1440p and 4K request it. This
+resource negotiation is part of native open, not a separate user action.
 
 `RemoteplayDaemon`'s resource lifecycle is at `0x530f0` / `0x53450` / `0x534e0`.
 Its parameter initializer is at `0x57770`, and rate updates are at `0x580b0`.
@@ -91,13 +97,13 @@ the following offset; unused bytes are zero unless specified:
 | Offset | Meaning / tested value |
 | --- | --- |
 | `0x14` | Source: 2 (Remote Play path) |
-| `0x18` | Resolution class: 4 = 1920×1080 |
+| `0x18` | Resolution class: 3 = 720p, 4 = 1080p, 5 = 1440p, 6 = 3840×2160 |
 | `0x1c` | Cadence selector: 1 = nominal 60, 0 = nominal 30 |
 | `0x24` | Codec: 0 = AVC, 1 = HEVC; only AVC tested |
-| `0x28` | Active ResourceArbitrator ID, `0xb4` |
-| `0x40` / `0x44` / `0x48` | AVC packetization controls: 1 / 68 / 1 for 60 fps |
+| `0x28` | Active ResourceArbitrator ID: `0xb4` for 720p/1080p, `0xb6` for 1440p/4K |
+| `0x40` / `0x44` / `0x48` | AVC packetization controls: 1 / `245760/fps/60` / 1 |
 | `0x4c` | Packet-size budget in bits: `1400*8` |
-| `0x58` / `0x5c` / `0x68` | Native initialization values: 1 / 9 / 1 |
+| `0x58` / `0x5c` / `0x68` | Native controls: 1 / reference-picture budget / 1; budget is 4 for 4K, otherwise 9 |
 | `0xc8` | Native AVC target rate: `(float)(kbps*1000)/1.12f` |
 | `0xcc` | Rate limit in bits/s: `kbps*1000` |
 | `0xd0` | Frame bit budget: `bps*1001/(fps*1000)` |
@@ -115,9 +121,13 @@ The native divisor is read from `RemoteplayDaemon` rodata `0x4f0db0`.
 Setting both `0xc8` and `0xcc` to the full rate with an incomplete set of
 associated controls produced a `Start` error `0x80c78000`. The native formula
 above and the production configuration successfully started and decoded.
-Only 1080p with the nominal 60-fps selector and 8000-kbps setting has been
-validated on this console; other exposed resolutions/rates are ABI mappings,
-not tested playback guarantees. HDR color paths are also unverified.
+Four reference pictures keep 4K AVC within the intended level budget; the
+previous value of nine forced level 6.0. The dashboard currently requests 4K
+at 30 fps / 32000 kbps, 1440p at 30 / 16000, 1080p at 60 / 8000, and 720p at
+60 / 5000. These are encoder configuration values, not measured constant
+output rates. The 1440p 60-fps attempt failed at native Start with `0x81950008`;
+the final 30-fps preset passed. HDR color paths and higher-resolution 60-fps
+capture remain unverified.
 
 ## Video headers, samples, and clock
 
@@ -137,9 +147,10 @@ the three-second probe. The backend now calls the symbol-resolved
 `sceAvcap2RequestKeyFrame(handle)` after two seconds of captured media without
 an IDR, so late viewers can obtain another decoding entry point. The exported
 one-argument ABI is confirmed at `libSceAvcap2+0x17c0`; request timing, error
-handling and reopening are covered by host tests. The integrated 90-second
-console capture confirmed **45 IDRs**, with a maximum interval of **2.036
-seconds**, and actual browser reconnect succeeded.
+handling and reopening are covered by host tests. The historical 90-second
+1080p console capture confirmed **45 IDRs**, with a maximum interval of **2.036
+seconds**, and actual browser reconnect succeeded. That measurement does not
+establish the interval at every current resolution.
 
 The video info record is `0x70` bytes (the backend reserves `0x80`):
 
@@ -150,12 +161,13 @@ The video info record is `0x70` bytes (the backend reserves `0x80`):
 | `0x1c` | Observed 1 on initial IDR, 3 on following P pictures |
 | `0x3c` / `0x40` | Observed encoded width / height |
 
-Consecutive normal video frames advanced by 4004 ticks, or 16,683⅓ µs.
+Consecutive normal 60-fps video frames advanced by 4004 ticks, or 16,683⅓ µs.
 Audio advanced by 5120 ticks per 1024 samples at 48 kHz, independently
 confirming the same clock **rate**, but its absolute value is not directly
-interchangeable with the video clock. The backend converts to 64-bit microseconds using
-quotient/remainder arithmetic. Timestamps are not microseconds in the native
-record; dividing them by 1000 as the previous implementation did was wrong.
+interchangeable with the video clock. The backend uses wide integer arithmetic
+to convert rebased values to 64-bit microseconds. Timestamps are not
+microseconds in the native record; dividing them by 1000 as the previous
+implementation did was wrong.
 
 Before audio clock rebasing, an integrated probe found audio more than 3300
 seconds behind video and discarded all AAC packets. During
@@ -169,27 +181,36 @@ audio device. Video also uses the TSC formula (`0x50a9`), while `CLOCK_MONOTONIC
 is a separate host clock. A simultaneous probe measured a roughly 1.6-second
 offset between video time and monotonic time.
 
-Consequently, source clocks require explicit anchoring when assembling an A/V
-timeline. The audio counter's rate remains useful for sample spacing; its stale
-absolute epoch must not cause otherwise valid AAC packets to be discarded.
-The audio backend now resolves `sceKernelReadTsc` and
-`sceKernelGetTscFrequency` from `libkernel.sprx`. At its first successful PCM
-read, it records source counter `S0` and sets
-`anchor = floor(TSC*240000/frequency) + 5120`. Subsequent source counter `Si`
-maps to `floor((anchor + Si - S0)*1000000/240000)` microseconds. The 5120-tick
-addition reproduces the native fresh-device producer's explicit one-block
-offset; it is not a guessed correction for the observed multi-second mismatch.
-The mapping preserves all subsequent sample-counter differences, rejects
-regressions/overflow, and establishes a fresh anchor on capture reopen. It
-resolved the integrated audio failure: the subsequent 90-second captures
-contained 4218 decoded AAC frames each, alongside video, with monotonic
-timestamps on both tracks.
+Consequently, both backends resolve `sceKernelReadTsc` and
+`sceKernelGetTscFrequency` from `libkernel.sprx` and anchor each capture session
+to the native TSC epoch. Some encoder modes also retain a media counter while
+idle; treating their raw timestamps as current time left video seconds behind
+audio after resolution changes.
+
+For video, the first successful read records native PTS `V0` and
+`anchorV = floor(TSC*240000/frequency)`. Every subsequent native PTS or DTS `Vi`
+maps to `floor((anchorV + Vi - V0)*1000000/240000)` microseconds. Using the same
+offset for both preserves the native cadence and PTS/DTS separation. Signed
+wide intermediates allow a DTS before `V0` while rejecting negative mapped
+times and overflow. Close clears the anchor before the next session.
+
+For audio, the first successful PCM read records source counter `S0` and
+`anchorA = floor(TSC*240000/frequency) + 5120`. Counter `Si` maps to
+`floor((anchorA + Si - S0)*1000000/240000)` microseconds. The 5120-tick addition
+matches the fresh native producer's one-block offset. This preserves sample
+spacing, rejects regressing counters/overflow, and resets on reopen. The
+historical 90-second captures then contained 4218 decoded AAC frames each,
+alongside video, with monotonic timestamps on both tracks. The capture loop
+maps each session onto a continuous payload timeline and releases new stream
+headers to viewers after a restart or resolution change.
 RemoteplayDaemon's audio consumer at `0x5a390` obtains the native timestamp but
 does not use it when returning the PCM frame. Exact perceptual A/V alignment
 still needs a simultaneous audiovisual reference; packet arrival alone does
-not establish capture or encoder latency. Anchoring at the first read instead
-of the producer's internal timestamp instant leaves roughly one PCM block
-(21.33 ms) of phase uncertainty plus unmeasured scheduling/queue latency.
+not establish capture or encoder latency. Video's first delivery includes
+unmeasured capture/encode delay. Audio's first-read anchor leaves roughly one
+PCM block (21.33 ms) of phase uncertainty plus scheduling/queue latency. These
+anchors prevent stale epochs from breaking playback; they are not a measured
+A/V synchronization calibration.
 
 Native reads return the positive encoded byte count. `0x81950002` means no
 packet ready; `0x81950004` is an overrun/retry condition. `0x81950001` is an
@@ -198,7 +219,7 @@ invalid-argument/state error and must not be swallowed as EAGAIN. Error
 and inactive resource ID; its value alone does not identify the cause.
 `0x819b....` errors belong to ResourceArbitrator, while Venc uses `0x80c7....`.
 
-The retained [console runtime log](evidence/console-runtime-2026-10-28.log)
+The historical [console runtime log](evidence/console-runtime-2026-10-28.log)
 also records one native video error `0x81950009`. The payload closed capture,
 returned its resource state to STOP, waited five seconds, reopened successfully,
 and resumed both tracks. The native error's cause is unknown; this observed
@@ -206,14 +227,32 @@ recovery was not a deliberately injected fault.
 
 ## Audio
 
-`audio.c` independently opens stereo interleaved float PCM at 48 kHz from
-Avcap2 and encodes 1024-sample frames with `libSceM4aacEnc` / `libSceAjmi`.
+`audio.c` opens stereo interleaved float PCM at 48 kHz from Avcap2 using the
+resource already held by video. Its `0x38`-byte open record contains:
+
+| Offset | Value / meaning |
+| --- | --- |
+| `0x00` | 64-bit record size `0x38` |
+| `0x08` | 64-bit nested format size `0x18` |
+| `0x10` | Device type 2: native AudioSecond, with a per-client device key |
+| `0x14` | Source 2: Remote Play system mix |
+| `0x1c` | The selected video ResourceArbitrator ID, 180 or 182 |
+
+AudioSecond still reads the full system mix; it does not select a different
+channel or synthesize audio. The previous type-0 device could reuse another
+client's stale resource binding. The producer checks its resource on every
+PCM read, so the audio record must follow the video allocation across mode
+changes. Audio closes before the owning video allocation is returned to STOP.
+
+Each read supplies 1024 stereo float samples (8192 bytes). The backend encodes
+these blocks with `libSceM4aacEnc` / `libSceAjmi`.
 The native encoder emits ADTS AAC-LC; the backend validates/removes ADTS and
 supplies raw AAC plus AudioSpecificConfig `11 90` to FLV. It preserves delayed
 encoder timestamps through a FIFO. It never substitutes silence.
 
-The audio probe produced 141 frames in approximately 3 seconds. FFprobe found
-AAC-LC, stereo, 48 kHz; FFmpeg decoded 144,384 finite, non-silent samples. See
+The historical audio probe produced 141 frames in approximately 3 seconds.
+FFprobe found AAC-LC, stereo, 48 kHz; FFmpeg decoded 144,384 finite, non-silent
+samples. See
 [audio probe](evidence/audio-probe-2026-10-28.log) and
 [audio FFprobe result](evidence/audio-probe-ffprobe.json).
 
@@ -229,9 +268,11 @@ ffprobe -v error -count_frames -show_entries stream=codec_name,width,height,prof
 ffmpeg -v error -i capture.h264 -f null -
 ```
 
-`tests/test_avcap.c` exercises initialization order, resource cleanup after
-open/header/start failures, nonblocking read statuses, native header insertion,
-large timestamps, periodic keyframe request timing, and preserving a resource
-state this client did not acquire.
+`tests/test_avcap.c` exercises initialization order, resolution/resource mapping,
+callback matching, cleanup after open/header/start failures, nonblocking read
+statuses, native header insertion, timestamp rebasing and periodic keyframe
+requests. Capture-loop tests check the resource passed to audio; audio unit
+tests cover PCM validation, rebasing and AAC framing. The opt-in four-mode console and browser commands are in
+[VALIDATION.md](VALIDATION.md#reproduce).
 This host test supplements the console probe; mocks alone do not establish ABI
 correctness or on-console playback.

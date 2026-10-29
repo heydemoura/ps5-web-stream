@@ -16,5 +16,6 @@ int capture_settings_request(const char *resolution); /* -1 invalid, 0 same, 1 c
 int capture_settings_current(uint32_t revision);
 void capture_settings_begin(const capture_settings *settings);
 void capture_settings_ready(uint32_t revision);
+void capture_settings_end(uint32_t revision);
 size_t capture_settings_json(char *out, size_t cap);
 #endif

@@ -4,12 +4,11 @@ A web-only PlayStation 5 homebrew payload that streams console video and audio
 over your local network, without a capture card. The console serves the
 settings dashboard, a fullscreen player and the H.264/AAC media stream.
 
-**Current verification:** native 720p, 1080p and 1440p video with 48 kHz stereo
-AAC decode correctly on the test console. Chrome verified automatic muted
-playback, desktop/mobile viewport coverage, audio, and resolution changes from
-a separate dashboard tab. **4K is selectable but remains under investigation:**
-the current capture attempt returns `0x8195000a`. Full four-resolution support
-is not yet complete. See [validation results](docs/VALIDATION.md).
+**Current verification:** native 720p, 1080p, 1440p and 4K H.264 video with 48 kHz
+stereo AAC decode correctly on the test console. Chrome verified automatic
+muted playback, desktop/mobile viewport coverage, audio, and all four resolution
+changes from a separate dashboard tab. See
+[validation results](docs/VALIDATION.md).
 
 The test instance uses:
 
@@ -35,13 +34,13 @@ memory for the current payload session; restarting the payload selects 1080p.
 |---|---|---|---|
 | 720p | 1280 × 720 | 60 / 5000 | Video + audio passed |
 | 1080p | 1920 × 1080 | 60 / 8000 | Video + audio passed; default |
-| 1440p | 2560 × 1440 | 60 / 16000 | Video + audio passed |
-| 4K | 3840 × 2160 | 30 / 32000 | Pending: capture open fails |
+| 1440p | 2560 × 1440 | 30 / 16000 | Video + audio passed |
+| 4K | 3840 × 2160 | 30 / 32000 | Video + audio passed |
 
 Rates are encoder configuration values; actual cadence and bitrate can vary.
 The selected resolution is a capture request, not a browser scaling option.
-`/status` distinguishes the requested mode from the active mode. If 4K fails,
-select one of the verified modes to resume viewing.
+`/status` distinguishes the requested mode from the active mode. A mode change
+can take several seconds while native resources are reallocated.
 
 ## Architecture
 
@@ -97,9 +96,10 @@ make deploy PS5_HOST=192.168.0.190 HTTP_PORT=8081
 **`make deploy` rebuilds the ELF.** Repeat the `HTTP_PORT` override or it rebuilds
 with port `8080`. The loader port defaults to `9021` (`PS5_PORT` overrides it).
 Upload success confirms transfer; check `/status` and `/log` for capture results.
-A loader supporting arguments can pass `[http_port] [--scanin]`; the HTTP port
-must be between 1 and 65535. Scan-in setup remains an experimental opt-in,
-disabled by default. See [capture API notes](docs/AVCAP2.md).
+A loader supporting arguments can pass `[http_port]`; the HTTP port must be
+between 1 and 65535. Native capture open negotiates its capture tap; no separate
+scan-in helper or manual tap setup is required. See
+[capture API notes](docs/AVCAP2.md).
 
 ## HTTP API
 
@@ -148,21 +148,21 @@ exit. Commands, mode results and current limitations are in
 
 ## Limits
 
-- 4K capture remains unresolved; the four-resolution objective is still open.
+- The verified 1440p and 4K presets use 30 fps; 60 fps at these resolutions is
+  not supported by the current configuration.
 - Eight media viewers; 24 HTTP workers; up to 6 MiB / 1,024 pending tags per
   viewer, plus the tag currently being sent. HTTP headers are limited to 8 KiB
   with a five-second request deadline; stalled/disconnected clients are released.
 - Resolution changes and capture recovery briefly interrupt playback. Settings
   are shared by viewers and reset to 1080p when the payload restarts.
 - Cold-boot behavior, other firmware versions, HDR and multi-hour operation
-  remain untested. Earlier diagnostics enabled scan-in during this console
-  session, so fresh-boot independence from that step is not established.
+  remain untested.
 - Perceptual A/V offset and glass-to-glass latency have not been measured.
 - This is a LAN server without authentication, TLS, internet relay or NAT traversal.
 
 ## Layout and license
 
-`src/main.c` manages capture; `avcap.*`, `scanin.*` and `audio.*` implement native
+`src/main.c` manages capture; `avcap.*` and `audio.*` implement native
 media interfaces; `flv.*` muxes and broadcasts; `http.*`, `settings.*` and
 `status.*` provide the web server and controls. `web/` contains the dashboard,
 fullscreen player and embedded dependencies; `tests/` contains regressions,

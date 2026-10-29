@@ -5,7 +5,7 @@
 
 static const capture_settings presets[] = {
   {"4k", 3840, 2160, 30, 32000, 0},
-  {"1440p", 2560, 1440, 60, 16000, 0},
+  {"1440p", 2560, 1440, 30, 16000, 0},
   {"1080p", 1920, 1080, 60, 8000, 0},
   {"720p", 1280, 720, 60, 5000, 0}
 };
@@ -46,6 +46,11 @@ void capture_settings_begin(const capture_settings *settings) {
 void capture_settings_ready(uint32_t revision) {
   pthread_mutex_lock(&lock);
   if (capturing.revision == revision && requested.revision == revision) ready = 1;
+  pthread_mutex_unlock(&lock);
+}
+void capture_settings_end(uint32_t revision) {
+  pthread_mutex_lock(&lock);
+  if (capturing.revision == revision) ready = 0;
   pthread_mutex_unlock(&lock);
 }
 size_t capture_settings_json(char *out, size_t cap) {

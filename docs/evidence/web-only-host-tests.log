@@ -8,51 +8,74 @@ avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
 avcap: RequestKeyFrame -> 0x81950008
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x81950008
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x81950001 (0 bytes)
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x80c78000
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x819b0001
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 STOP -> 0x819b0001
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1280x720@60 5000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
 avcap: ResourceArbitrator 0xb4 RUNNING
 avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
-avcap: ResourceArbitrator 0xb4 RUNNING
-avcap: OpenVideo 2560x1440@60 16000 kbps mode=0x13c -> 0x0
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 2560x1440@30 16000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
 avcap: GetVideoOutMode -> 0x0 mode=0x13c
-avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: ResourceArbitrator 0xb6 RUNNING
 avcap: OpenVideo 3840x2160@30 32000 kbps mode=0x13c -> 0x0
 avcap: NonVcl headers -> 0x0 (10 bytes)
 avcap: Start -> 0x0
-avcap: ResourceArbitrator STOP -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 3840x2160@30 32000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
 avcap: sequencing, RA cleanup, nonblocking status, headers, keyframe requests and timestamps pass
 clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_audio.c -o build/test_audio
 ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
@@ -80,7 +103,7 @@ main: no usable audio for 10 seconds; reopening capture
 main: audio capture/encoder unavailable
 main: video clock pts=18446744073709551615 dts=1 us monotonic_ms=1100
 main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
-PS5 HDMI Stream test: PID 1480 HTTP 18080
+PS5 HDMI Stream test: PID 7897 HTTP 18080
 capture-loop timing, configuration, restart and cleanup passed
 clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_transport.c src/flv.c -o build/test_transport
 ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment

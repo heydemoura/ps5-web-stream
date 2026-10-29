@@ -1,0 +1,32 @@
+{
+  "captured_at_utc": "2026-10-29T02:55:59.600191+00:00",
+  "base_commit": "b4da0c65bdeb6f26463058159cca8bc94e241dff",
+  "working_tree_changes": true,
+  "http_base": "http://192.168.0.190:8081",
+  "elf_sha256": "cc58369cfd0376f9533a4418acb9f2b9e09ac440eaaa29eac50dac583425f600",
+  "elf_size": 409288,
+  "source_sha256": {
+    "Makefile": "1f50afce8a4e7cf6cd3737413904153e45e9329e977b16f1456f34f6de855a7d",
+    "src/audio.c": "6affa5409fa446851241e32807295739dbf3a988510298c8541207145f782413",
+    "src/audio.h": "c39b0d14e2cdc47c2dd92651ddfe13c084b514d5f4327c74019d966e260dae75",
+    "src/avcap.c": "61ccea68ad15c3fbf4261fbdb5c843c5312f72449378ced8a8ecad0baf760cd8",
+    "src/avcap.h": "34115424ce9760d78dc8a6b833e97c62ebc5f402fba4ef5633f8c72ad5cb6455",
+    "src/flv.c": "f0c37afa20946f9fe99f27d9f017d9a452351107eeb66bb9b97e87e5482248a2",
+    "src/flv.h": "78a5287fdef668e49cdfdb4530c5aef5d0a6618f7beac94a77b01b718e1eaa62",
+    "src/http.c": "ce6c364b55b5d70126e7057848cfeb94f33aeb767f1e8453638b04af0ba1cb89",
+    "src/http.h": "9df72a8cd71c87bab970f8ebaa60b410a26bbe8f526327df0384b23be504159a",
+    "src/log.h": "3307f91224acd2bf0e932250900fa67167cf6feb1ddaa5801a740d55f56be014",
+    "src/main.c": "31093064c1fab06ede878bd1362e2237b3f302587e2ba1f3f3ea833318664b5f",
+    "src/settings.c": "dd45a9da26cb09ecec3e9c7bd6aaed94d5e81ba696c1a9564f0cf415060fe7b1",
+    "src/settings.h": "5f23b600ccaf0061fd67ecbe373a127aaedc01423856da95030b39c699434ce7",
+    "src/status.c": "fd18cb0a2e0810c25ff9ff75845d04bd81190a4bbf1ec6c969a8c5579ae595d2",
+    "src/status.h": "d02c16ccb731f09c762f83f3d9dc5258879732d90e96d159bc7c19213c5d935b",
+    "tools/embed.py": "f4fe442560c4ba29859685aa685723cd4850a5153ff46fab8162ceead6535d8e",
+    "web/app.js": "174cd876a1ff9b2b1b2d28aebdfea1582ad2c01f3051d3dc9aad593ab40c78b7",
+    "web/index.html": "ba166f53e867b45439b1c6886e168fde609eb9ec910e1a781039d3f0df4d2cc8",
+    "web/player.html": "2d972dc26f84747e18121ddb88dfdddaa3b2eb8d8960254891ad2258d9670365",
+    "web/vendor/flv.LICENSE": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+    "web/vendor/flv.min.js": "733b9b325dbc59871a652c0a84f2f285a2cfd06cf2efcedcd87cb1e194cd1e8f"
+  },
+  "startup": "PS5 HDMI Stream b4da0c6-dirty: PID 194 HTTP 8081"
+}

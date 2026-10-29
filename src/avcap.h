@@ -38,6 +38,9 @@ int  avcap_init(void);
 
 /* Open video; audio capture/encoding is owned by audio.h. */
 int  avcap_open(const avcap_config *cfg);
+/* Resource held by the open video session; pass to audio_capture_open.
+ * Returns -1 when video is closed. Audio must close before avcap_close. */
+int  avcap_resource_id(void);
 
 /* Read one encoded video access unit into `buf`. Returns:
  *   1  frame produced (fills `fr`)
@@ -52,6 +55,5 @@ void avcap_terminate(void);
 
 /* Last raw SCE return code seen, for diagnostics. */
 int  avcap_last_error(void);
-void avcap_set_scanin(int on);
 
 #endif /* PS5HS_AVCAP_H */
