@@ -147,6 +147,13 @@ between 1 and 65535. Native capture open negotiates its capture tap; no separate
 scan-in helper or manual tap setup is required. See
 [capture API notes](docs/AVCAP2.md).
 
+## GitHub releases
+
+Publishing a GitHub release triggers [the release workflow](.github/workflows/release.yml).
+It builds `ps5-web-stream.elf` with PS5 payload SDK v0.45 and attaches the ELF
+and its SHA-256 checksum to the release. No repository secrets are required;
+the workflow uses GitHub's provided token to upload release assets.
+
 ## HTTP API
 
 | Method | Endpoint | Purpose |

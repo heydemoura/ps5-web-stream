@@ -1,0 +1,44 @@
+name: Build release payload
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 lld-18 llvm-18 make python3 unzip wget
+
+      - name: Install PS5 payload SDK
+        env:
+          SDK_VERSION: v0.45
+        run: |
+          wget -q "https://github.com/ps5-payload-dev/sdk/releases/download/${SDK_VERSION}/ps5-payload-sdk.zip" -O "$RUNNER_TEMP/ps5-payload-sdk.zip"
+          unzip -q "$RUNNER_TEMP/ps5-payload-sdk.zip" -d "$RUNNER_TEMP"
+          test -x "$RUNNER_TEMP/ps5-payload-sdk/bin/prospero-clang"
+
+      - name: Build payload
+        env:
+          PS5_PAYLOAD_SDK: ${{ runner.temp }}/ps5-payload-sdk
+          LLVM_CONFIG: llvm-config-18
+        run: make HTTP_PORT=8080
+
+      - name: Create checksum
+        run: sha256sum ps5-web-stream.elf > ps5-web-stream.elf.sha256
+
+      - name: Attach payload to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" ps5-web-stream.elf ps5-web-stream.elf.sha256 --clobber
