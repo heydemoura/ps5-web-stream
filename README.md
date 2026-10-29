@@ -47,6 +47,24 @@ Resolution is applied once on page load and changes capture for all viewers.
 Invalid values are ignored. If the browser blocks autoplay with sound, tap the
 video to start; controls stay hidden and audio is not silently muted.
 
+### Use the fullscreen player in OBS
+
+1. In OBS, add a **Browser** source to the scene.
+2. Set its URL to the player URL, for example:
+   `http://192.168.0.190:8081/player?controls=0&mute=0&resolution=4`.
+   Replace the address with the console’s reachable IP and port.
+3. Set the source dimensions to match the output you want (for example,
+   3840 × 2160 for 4K, 2560 × 1440 for 1440p, or 1920 × 1080 for 1080p), then
+   confirm the source is visible in the scene.
+4. Keep `controls=0` for a clean feed. Remove it or set `controls=1` when you
+   want the in-player settings and playback controls. Choose `mute=1` if you
+   want OBS to receive no player audio; `mute=0` enables audio when the browser
+   allows unmuted autoplay.
+
+The `resolution` option changes the console’s shared capture mode, so it also
+changes the stream seen by other viewers. OBS browser audio is controlled by
+`mute`; use the Browser source’s audio settings in OBS to route or monitor it.
+
 
 
 Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
