@@ -16,10 +16,10 @@ int main(int argc, char **argv) {
   broadcaster_init(&b);
   broadcaster_set_video_params(&b, 1920, 1080, 60, 8000);
   stream_status_set("error", (int)0x81950008);
-  assert(http_server_start(&b, 0, 1935) == -1);
-  assert(http_server_start(&b, 65536, 1935) == -1);
-  assert(http_server_start(&b, port, 1935) == 0);
-  assert(http_server_start(&b, port, 1935) == -1);
+  assert(http_server_start(&b, 0) == -1);
+  assert(http_server_start(&b, 65536) == -1);
+  assert(http_server_start(&b, port) == 0);
+  assert(http_server_start(&b, port) == -1);
   LOG("http fixture ready");
   for (;;) pause();
 }

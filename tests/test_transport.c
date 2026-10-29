@@ -1,11 +1,14 @@
-/* Regression tests for stream framing, queue ownership and RTMP parsing. */
+/* Regression tests for stream framing, queue ownership and capture switches. */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "../src/rtmp.c"
+#include "flv.h"
+#include "log.h"
+static uint32_t be24(const uint8_t *p) { return ((uint32_t)p[0]<<16)|((uint32_t)p[1]<<8)|p[2]; }
+static uint32_t be32(const uint8_t *p) { return ((uint32_t)p[0]<<24)|be24(p+1); }
 
 char g_log_ring[LOG_RING_SIZE];
 size_t g_log_len;
@@ -129,67 +132,20 @@ static void test_lifetime(void) {
   pthread_join(producer, NULL); free(tag); pthread_mutex_destroy(&b.mtx);
 }
 
-static void test_rtmp_chunks(void) {
+static void test_switch_disconnect(void) {
+  broadcaster b; broadcaster_init(&b);
   int fd[2]; assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, fd));
-  /* A fragmented extended-timestamp message interrupted by another CSID. */
-  uint8_t wire[] = {
-    3, 255,255,255, 0,0,5, 20, 1,0,0,0, 1,2,3,4, 'h','e',
-    0,6, 0,0,0, 0,0,2, 4, 0,0,0,0, 'O','K', /* csid 70 */
-    0xc3, 1,2,3,4, 'l','l',
-    0xc3, 1,2,3,4, 'o'
-  };
-  assert(write_all(fd[0], wire, sizeof(wire)) == 1);
-  cs_state cs[IN_STREAMS_MAX] = {{0}};
-  uint8_t buf[32]; int type;
-  assert(read_msg(fd[1], 2, cs, IN_STREAMS_MAX, buf, sizeof(buf), &type) == 2);
-  assert(type == 4 && !memcmp(buf, "OK", 2));
-  assert(read_msg(fd[1], 2, cs, IN_STREAMS_MAX, buf, sizeof(buf), &type) == 5);
-  assert(type == 20 && !memcmp(buf, "hello", 5));
-  assert(cs[0].ts == 0x01020304 && cs[1].id == 70);
-  assert(read_msg(fd[1], 0, cs, IN_STREAMS_MAX, buf, sizeof(buf), &type) == -1);
-  free_chunks(cs, IN_STREAMS_MAX); close(fd[0]); close(fd[1]);
-  char name[64]; double txn;
-  uint8_t cmd[20] = {2,0,4,'p','l','a','y',0};
-  for (int n = 0; n < 16; n++) assert(parse_cmd(cmd, n, name, sizeof(name), &txn) == -1);
-  assert(parse_cmd(cmd, 16, name, sizeof(name), &txn) == 0 && !strcmp(name, "play"));
-  uint8_t command[256], *p = command;
-  p = amf_str(p, "connect"); p = amf_num(p, 1); *p++ = 3;
-  p = amf_key(p, "app"); p = amf_str(p, "live"); p = amf_obj_end(p);
-  assert(connect_app_is_live(command, (size_t)(p-command)));
-  for (size_t n = 0; n < (size_t)(p-command)-3; n++)
-    assert(!connect_app_is_live(command, n));
-  p = command; p = amf_str(p, "play"); p = amf_num(p, 0); *p++ = 5;
-  p = amf_str(p, "stream");
-  assert(play_stream_is_valid(command, (size_t)(p-command)));
-  for (size_t n = 0; n < (size_t)(p-command); n++)
-    assert(!play_stream_is_valid(command, n));
-  p[-1] = 'x'; assert(!play_stream_is_valid(command, (size_t)(p-command)));
-
-}
-
-typedef struct { int fd; uint8_t *body; size_t len; } send_ctx;
-static void *send_extended(void *arg) {
-  send_ctx *c = arg;
-  assert(send_msg(c->fd, 4, 0x12345678, 9, 1, c->body, c->len) == 0);
-  return NULL;
-}
-static void test_rtmp_output(void) {
-  int fd[2]; assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, fd));
-  uint8_t *body = malloc(OUT_CHUNK + 7); assert(body);
-  memset(body, 0x77, OUT_CHUNK + 7);
-  send_ctx ctx = {fd[0], body, OUT_CHUNK + 7};
-  pthread_t writer; assert(!pthread_create(&writer, NULL, send_extended, &ctx));
-  size_t wire_len = 16 + OUT_CHUNK + 5 + 7;
-  uint8_t *wire = malloc(wire_len); assert(wire);
-  assert(read_all(fd[1], wire, wire_len) == 1);
-  assert(wire[16+OUT_CHUNK] == 0xc4);
-  assert(be32(wire+17+OUT_CHUNK) == 0x12345678);
-  assert(!memcmp(wire+21+OUT_CHUNK, body, 7));
-  pthread_join(writer, NULL); free(wire); free(body); close(fd[0]); close(fd[1]);
+  bc_client *c = broadcaster_add_client(&b, fd[0], 1); assert(c);
+  broadcaster_disconnect_clients(&b);
+  uint8_t byte;
+  assert(!broadcaster_client_read_exact(c, &byte, 1));
+  assert(read(fd[1], &byte, 1) == 0);
+  broadcaster_remove_client(&b, c); broadcaster_client_free(c);
+  close(fd[0]); close(fd[1]); pthread_mutex_destroy(&b.mtx);
 }
 
 int main(void) {
-  test_codecs(); test_queue(); test_lifetime(); test_rtmp_chunks(); test_rtmp_output();
+  test_codecs(); test_queue(); test_lifetime(); test_switch_disconnect();
   puts("transport regressions passed");
   return 0;
 }

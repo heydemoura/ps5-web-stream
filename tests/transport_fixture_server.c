@@ -1,10 +1,8 @@
 /* Host-only fixture source; this does not emulate or verify PS5 capture. */
 #include "flv.h"
-#include "rtmp.h"
-#ifdef TEST_HTTP
 #include "http.h"
 #include "status.h"
-#endif
+#include "settings.h"
 #include "log.h"
 #include <assert.h>
 #include <time.h>
@@ -23,7 +21,7 @@ static uint64_t now_ms(void) {
   return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 int main(int argc, char **argv) {
-  if (argc != 4) return 2;
+  if (argc != 3) return 2;
   FILE *f = fopen(argv[1], "rb"); assert(f);
   assert(!fseek(f, 0, SEEK_END)); long size = ftell(f); assert(size > 13);
   rewind(f); uint8_t *data = malloc((size_t)size); assert(data);
@@ -32,10 +30,9 @@ int main(int argc, char **argv) {
   broadcaster b; broadcaster_init(&b);
   broadcaster_set_video_params(&b, 320, 180, 30, 500);
   b.have_audio = 1;
-  assert(!rtmp_server_start(&b, atoi(argv[2])));
-#ifdef TEST_HTTP
-  assert(!http_server_start(&b, atoi(argv[3]), atoi(argv[2])));
-#endif
+  assert(!http_server_start(&b, atoi(argv[2])));
+  capture_settings settings; capture_settings_get(&settings);
+  capture_settings_begin(&settings); capture_settings_ready(settings.revision);
   uint32_t base = 0;
   uint64_t start = now_ms();
   for (;;) {
@@ -56,11 +53,9 @@ int main(int argc, char **argv) {
         uint32_t stamp = base + ts;
         tag[4] = stamp >> 16; tag[5] = stamp >> 8; tag[6] = stamp; tag[7] = stamp >> 24;
         broadcaster_push(&b, tag, len+15, tag[0] == 9 && (tag[11] >> 4) == 1);
-#ifdef TEST_HTTP
         if (tag[0] == 9) stream_status_video(stamp);
         else stream_status_audio(stamp);
         stream_status_set("streaming", 0);
-#endif
         memcpy(tag+4, saved, 4);
       }
       pos += len + 15;

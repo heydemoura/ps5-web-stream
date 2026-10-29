@@ -3,7 +3,7 @@
 #include "audio.h"
 #include "flv.h"
 #include "http.h"
-#include "rtmp.h"
+#include "settings.h"
 #include "status.h"
 #include "log.h"
 #include <errno.h>
@@ -22,9 +22,6 @@ pthread_mutex_t g_log_mtx = PTHREAD_MUTEX_INITIALIZER;
 #ifndef DEF_HTTP_PORT
 #define DEF_HTTP_PORT 8080
 #endif
-#ifndef DEF_RTMP_PORT
-#define DEF_RTMP_PORT 1935
-#endif
 #define VIDBUF_SZ (4 * 1024 * 1024)
 #define AVCCBUF_SZ (VIDBUF_SZ * 2)
 static broadcaster g_bc;
@@ -40,7 +37,7 @@ static uint64_t now_ms(void) {
 /* One capture epoch uses one common video/audio clock. Its offset is anchored
  * to payload uptime and the last emitted timestamp, even if a buffered source
  * ran ahead of wall time. Reopened capture never rewinds connected players. */
-static int capture_loop(uint64_t started) {
+static int capture_loop(uint64_t started, uint32_t revision) {
   uint8_t *annexb = malloc(VIDBUF_SZ), *avcc = malloc(AVCCBUF_SZ);
   audio_capture *audio = NULL;
   audio_encoder *encoder = NULL;
@@ -60,6 +57,7 @@ static int capture_loop(uint64_t started) {
   stream_status_set("waiting", 0);
   uint64_t last_video = now_ms(), last_audio = last_video;
   while (!stopping) {
+    if (!capture_settings_current(revision)) { result = 1; break; }
     int activity = 0;
     avcap_frame fr;
     int r = avcap_read_video(annexb, VIDBUF_SZ, &fr);
@@ -102,6 +100,7 @@ static int capture_loop(uint64_t started) {
           origin_us = fr.dts_us; epoch_ms = now_ms() - started;
           if (epoch_ms < next_epoch_ms) epoch_ms = next_epoch_ms;
           last_audio = now_ms(); clock_set = 1;
+          capture_settings_ready(revision);
           LOG("main: video clock pts=%llu dts=%llu us monotonic_ms=%llu", (unsigned long long)fr.pts_us,
               (unsigned long long)fr.dts_us, (unsigned long long)now_ms());
         }
@@ -172,33 +171,35 @@ static int parse_port(const char *s, int *port) {
   *port = (int)n; return 0;
 }
 int main(int argc, char **argv) {
-  int http_port = DEF_HTTP_PORT, rtmp_port = DEF_RTMP_PORT;
+  int http_port = DEF_HTTP_PORT;
   int ports = 0, use_scanin = 0;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--noscanin") || !strcmp(argv[i], "noscanin")) use_scanin = 0;
     else if (!strcmp(argv[i], "--scanin")) use_scanin = 1;
-    else if (ports >= 2 || parse_port(argv[i], ports++ ? &rtmp_port : &http_port)) {
-      fprintf(stderr, "Usage: %s [http_port] [rtmp_port] [--scanin]\n", argv[0]); return 1;
+    else if (ports++ || parse_port(argv[i], &http_port)) {
+      fprintf(stderr, "Usage: %s [http_port] [--scanin]\n", argv[0]); return 1;
     }
   }
-  if (http_port == rtmp_port) { fprintf(stderr, "Ports must differ\n"); return 1; }
   signal(SIGPIPE, SIG_IGN); signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
   setvbuf(stdout, NULL, _IONBF, 0);
-  LOG("PS5 HDMI Stream %s: PID %d HTTP %d / RTMP %d", PS5HS_VERSION,
-      (int)getpid(), http_port, rtmp_port);
+  LOG("PS5 HDMI Stream %s: PID %d HTTP %d", PS5HS_VERSION, (int)getpid(), http_port);
   broadcaster_init(&g_bc);
-  broadcaster_set_video_params(&g_bc, 1920, 1080, 60, 8000);
   /* FLV's track flags are fixed for the lifetime of an HTTP connection. */
   g_bc.have_audio = 1;
-  if (http_server_start(&g_bc, http_port, rtmp_port) || rtmp_server_start(&g_bc, rtmp_port)) {
+  if (http_server_start(&g_bc, http_port)) {
     LOG("main: listener startup failed; exiting"); return 1;
   }
   avcap_set_scanin(use_scanin);
-  avcap_config cfg = {.width=1920,.height=1080,.fps=60,.bitrate=8000};
   uint64_t started = now_ms();
   int initialized = 0;
   while (!stopping) {
     stream_status_set("opening", 0);
+    capture_settings settings;
+    capture_settings_get(&settings);
+    capture_settings_begin(&settings);
+    avcap_config cfg = {.width=settings.width, .height=settings.height,
+                        .fps=settings.fps, .bitrate=settings.bitrate};
+    broadcaster_set_video_params(&g_bc, cfg.width, cfg.height, cfg.fps, cfg.bitrate);
     int r = 0;
     if (!initialized) {
       r = avcap_load();
@@ -206,13 +207,18 @@ int main(int argc, char **argv) {
       if (!r) initialized = 1;
     }
     if (!r) r = avcap_open(&cfg);
-    if (!r) r = capture_loop(started);
+    if (!r) r = capture_loop(started, settings.revision);
     avcap_close();
     broadcaster_reset(&g_bc);
     if (stopping) break;
+    if (!capture_settings_current(settings.revision)) {
+      broadcaster_disconnect_clients(&g_bc);
+      continue;
+    }
     LOG("main: capture unavailable (0x%x); retrying in 5s", r);
     stream_status_set("error", r);
-    for (int i=0; i<50 && !stopping; i++) usleep(100000);
+    for (int i=0; i<50 && !stopping && capture_settings_current(settings.revision); i++)
+      usleep(100000);
   }
   avcap_terminate();
   return 0;

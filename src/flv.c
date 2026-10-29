@@ -291,6 +291,19 @@ void broadcaster_reset(broadcaster *b) {
   pthread_mutex_unlock(&b->mtx);
 }
 
+void broadcaster_disconnect_clients(broadcaster *b) {
+  pthread_mutex_lock(&b->mtx);
+  for (int i = 0; i < b->n_clients; i++) {
+    bc_client *c = b->clients[i];
+    pthread_mutex_lock(&c->mtx);
+    c->dead = 1;
+    shutdown(c->fd, SHUT_RDWR);
+    pthread_cond_signal(&c->cond);
+    pthread_mutex_unlock(&c->mtx);
+  }
+  pthread_mutex_unlock(&b->mtx);
+}
+
 void broadcaster_set_avc_config(broadcaster *b, const uint8_t *cfg, size_t len) {
   if (!cfg || !len || len > sizeof(b->avc_cfg)) return;
   pthread_mutex_lock(&b->mtx);

@@ -21,6 +21,10 @@ static int (*p_ReadVideo)(void *, void *, uint64_t, void *, int);
 static int (*p_GetVideoOutMode)(int *);
 static int (*p_GetHeaders)(void *, void *);
 static int (*p_RequestKeyFrame)(void *);
+static void *g_kernel;
+static uint64_t (*p_ReadTsc)(void);
+static uint64_t g_tsc_frequency, g_source_origin, g_target_origin;
+static int g_clock_set;
 static void *g_ra_lib;
 static int (*p_RaSet)(int, void (*)(int,int,void *), void *);
 static int (*p_RaCheck)(int, const char *);
@@ -55,7 +59,6 @@ static void resource_release(void) {
     LOG("avcap: ResourceArbitrator STOP -> 0x%x", r);
     g_ra_owned = 0;
   }
-  if (g_ra_registered) { p_RaClear(VIDEO_RESOURCE); g_ra_registered = 0; }
 }
 static int resource_acquire(void) {
   if (!g_ra_lib) {
@@ -67,9 +70,14 @@ static int resource_acquire(void) {
     p_RaClear = dlsym(g_ra_lib, "sceResourceArbitratorClearCallback");
   }
   if (!p_RaSet || !p_RaCheck || !p_RaState || !p_RaClear) return -1;
-  int r = p_RaSet(VIDEO_RESOURCE, resource_callback, NULL);
-  if (r < 0) return r;
-  g_ra_registered = 1;
+  int r;
+  /* Callback registration belongs to the client lifetime, not each capture.
+   * Repeated clear/register cycles can block inside the firmware on a switch. */
+  if (!g_ra_registered) {
+    r = p_RaSet(VIDEO_RESOURCE, resource_callback, NULL);
+    if (r < 0) return r;
+    g_ra_registered = 1;
+  }
   r = p_RaCheck(VIDEO_RESOURCE, "RUNNING");
   if (r <= 0) { resource_release(); return r < 0 ? r : (int)0x81950008; }
   if (r != 2) {
@@ -110,9 +118,13 @@ int avcap_load(void) {
   p_GetVideoOutMode = resolve("sceAvcap2GetVideoOutMode");
   p_GetHeaders = resolve("sceAvcap2GetNonVclNalUnitStream");
   p_RequestKeyFrame = resolve("sceAvcap2RequestKeyFrame");
+  g_kernel = dlopen("libkernel.sprx", RTLD_NOW | RTLD_GLOBAL);
+  p_ReadTsc = g_kernel ? dlsym(g_kernel, "sceKernelReadTsc") : NULL;
+  uint64_t (*frequency)(void) = g_kernel ? dlsym(g_kernel, "sceKernelGetTscFrequency") : NULL;
+  g_tsc_frequency = frequency ? frequency() : 0;
   if (!p_Initialize || !p_Terminate || !p_OpenVideo || !p_Start ||
       !p_Stop || !p_Close || !p_ReadVideo || !p_GetVideoOutMode || !p_GetHeaders ||
-      !p_RequestKeyFrame) {
+      !p_RequestKeyFrame || !p_ReadTsc || !g_tsc_frequency) {
     dlclose(g_lib); g_lib = NULL; return g_err = -1;
   }
   return g_err = 0;
@@ -153,7 +165,9 @@ static void video_params(uint8_t p[0x2e0], const avcap_config *cfg, int mode,
   set32(p, 0x28, VIDEO_RESOURCE); /* active ResourceArbitrator ID */
   set32(p, 0x40, 1); set32(p, 0x44, 245760u/(unsigned)cfg->fps/60u);
   set32(p, 0x48, 1); set32(p, 0x4c, 1400*8);
-  set32(p, 0x58, 1); set32(p, 0x5c, 9); set32(p, 0x68, 1);
+  /* The reference-picture budget participates in native AVC level selection.
+   * Nine 4K pictures would force level 6.0; four fit level 5.1/5.2 at 30/60 Hz. */
+  set32(p, 0x58, 1); set32(p, 0x5c, cfg->height >= 2160 ? 4 : 9); set32(p, 0x68, 1);
   uint32_t bps = (uint32_t)cfg->bitrate * 1000u;
   set32(p, 0xc8, (uint32_t)((float)bps/1.12f)); set32(p, 0xcc, bps);
   uint32_t frame_bits = (uint32_t)((uint64_t)bps*1001u/((unsigned)cfg->fps*1000u));
@@ -226,9 +240,13 @@ int avcap_open(const avcap_config *cfg) {
   return g_err = 0;
 }
 
-static uint64_t ticks_to_us(uint64_t ticks) {
-  /* Avcap service uses the 240 kHz media clock; audio verified by sample count. */
-  return (ticks/240000u)*1000000u + (ticks%240000u)*1000000u/240000u;
+static int video_timestamp(uint64_t ticks, uint64_t *us) {
+  __int128 mapped = (__int128)g_target_origin + (__int128)ticks - g_source_origin;
+  if (mapped < 0 || mapped > UINT64_MAX) return -1;
+  __uint128_t converted = (__uint128_t)mapped * 1000000u / 240000u;
+  if (converted > UINT64_MAX) return -1;
+  *us = (uint64_t)converted;
+  return 0;
 }
 static int has_idr(const uint8_t *p, size_t n) {
   for (size_t i=0; i+3<n; ++i)
@@ -245,7 +263,21 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   if ((size_t)r > size) return g_err = AVCAP_INVALID;
   uint64_t pts, dts;
   memcpy(&pts, info+8, 8); memcpy(&dts, info+0x10, 8);
-  fr->len = (size_t)r; fr->pts_us = ticks_to_us(pts); fr->dts_us = ticks_to_us(dts);
+  /* Some encoder modes retain a media counter while their device is idle.
+   * Anchor the first presentation timestamp to current TSC for every session,
+   * then preserve native cadence and PTS/DTS spacing. This prevents a resolution
+   * switch from leaving video seconds behind audio. First-frame delivery has
+   * an unmeasured capture/encode delay; it is not a precise latency calibration. */
+  if (!g_clock_set) {
+    if (!p_ReadTsc || !g_tsc_frequency) return g_err = AVCAP_INVALID;
+    __uint128_t target = (__uint128_t)p_ReadTsc() * 240000u / g_tsc_frequency;
+    if (target > UINT64_MAX) return g_err = AVCAP_INVALID;
+    g_source_origin = pts; g_target_origin = (uint64_t)target;
+    g_clock_set = 1;
+  }
+  if (video_timestamp(pts, &fr->pts_us) || video_timestamp(dts, &fr->dts_us))
+    return g_err = AVCAP_INVALID;
+  fr->len = (size_t)r;
   fr->keyframe = has_idr(buf, fr->len);
   /* Remote Play's default encoder configuration emits only an initial IDR.
    * Request another every two seconds of captured media so new viewers can
@@ -277,9 +309,11 @@ void avcap_close(void) {
   if (g_video) { p_Stop(g_video); p_Close(g_video); g_video = NULL; }
   g_headers_len = 0;
   g_have_keyframe_clock = 0;
+  g_clock_set = 0;
   resource_release();
 }
 void avcap_terminate(void) {
   avcap_close();
+  if (g_ra_registered) { p_RaClear(VIDEO_RESOURCE); g_ra_registered = 0; }
   if (g_initialized) { p_Terminate(); g_initialized = 0; }
 }

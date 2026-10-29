@@ -1,7 +1,7 @@
 /* Copyright (C) 2026 heydemoura
  *
  * FLV muxing + a broadcaster that fans the muxed tag stream out to many
- * clients (RTMP play sessions and HTTP-FLV sessions share the same tags).
+ * HTTP-FLV viewers.
  *
  * The broadcaster keeps the current AVC and (optionally) AAC sequence headers
  * so a client that joins mid-stream is primed and then started on the next
@@ -74,6 +74,8 @@ void broadcaster_init(broadcaster *b);
 
 /* Clear codec state and reprime existing clients after a capture restart. */
 void broadcaster_reset(broadcaster *b);
+/* End connections before a resolution switch, so each decoder starts fresh. */
+void broadcaster_disconnect_clients(broadcaster *b);
 
 /* Set the AVC/AAC sequence headers (raw config-record bytes). */
 void broadcaster_set_avc_config(broadcaster *b, const uint8_t *cfg, size_t len);
@@ -95,12 +97,10 @@ void       broadcaster_remove_client(broadcaster *b, bc_client *c);
 void broadcaster_client_serve(bc_client *c);
 
 /* Block until `n` bytes are available in the client queue and copy them out.
- * Returns 1 on success, 0 if the client died first. Used by the RTMP path,
- * which re-frames the FLV tag stream into RTMP messages. */
+ * Returns 1 on success, 0 if the client died first. */
 int broadcaster_client_read_exact(bc_client *c, uint8_t *dst, size_t n);
 
-/* Free a client created with broadcaster_add_client without running serve()
- * (the RTMP path frees it itself after its own drain loop). */
+/* Free a client after its consumer has stopped and membership was removed. */
 void broadcaster_client_free(bc_client *c);
 
 #endif /* PS5HS_FLV_H */

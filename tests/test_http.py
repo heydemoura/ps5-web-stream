@@ -66,10 +66,16 @@ try:
     data = json.loads(body)
     assert status == 200 and data["capture_state"] == "error", data
     assert data["video_frames"] == 0 and data["audio"] is False, data
-    assert data["video"] == "1920x1080" and data["rtmp_port"] == 1935, data
+    assert data["video"] == "1920x1080" and "rtmp_port" not in data, data
     status, _, body = request("/")
     assert status == 200 and b'/vendor/flv.min.js' in body
     assert b"cdnjs" not in body
+    status, _, body = request("/player")
+    assert status == 200 and b'autoplay muted playsinline' in body
+    assert b'data-player="fullscreen"' in body and b'/app.js' in body
+    assert request("/player/")[0] == 200 and request("/player-extra")[0] == 404
+    status, _, body = request("/app.js")
+    assert status == 200 and b'capture_state' in body and b'rtmp' not in body.lower()
     status, headers, player = request("/vendor/flv.min.js")
     assert status == 200 and len(player) > 100000
     assert headers[b"content-type"] == b"application/javascript"
@@ -88,6 +94,40 @@ try:
         sock.sendall(b"GET / HTTP/1.1\r\nX-Huge: " + b"a" * 8200)
         response = sock.recv(8192)
         assert response.startswith(b"HTTP/1.1 431"), response
+
+    # Settings requests accept only exact supported presets, with bounded bodies.
+    def settings_request(value, custom=True, fragments=False, length=None, extra=b""):
+        body = ("resolution=" + value).encode()
+        n = len(body) if length is None else length
+        headers = (b"POST /settings HTTP/1.1\r\nHost: localhost\r\n"
+                   b"Content-Type: application/x-www-form-urlencoded\r\n" +
+                   (b"X-PS5HS-Request: 1\r\n" if custom else b"") +
+                   f"Content-Length: {n}\r\n".encode() + extra + b"\r\n")
+        with connect() as sock:
+            sock.sendall(headers)
+            for part in ([body[:5], body[5:]] if fragments else [body]):
+                sock.sendall(part)
+                if fragments: time.sleep(.03)
+            return receive(sock)
+    assert json.loads(request("/settings")[2])["requested_resolution"] == "1080p"
+    revision = data["settings_revision"]
+    for mode in ("4k", "1440p", "720p", "1080p"):
+        response = settings_request(mode, fragments=True)
+        assert response.startswith(b"HTTP/1.1 202"), response
+        updated = json.loads(response.split(b"\r\n\r\n", 1)[1])
+        assert updated["requested_resolution"] == mode and updated["applying"] is True
+        assert updated["active_resolution"] is None
+        assert updated["settings_revision"] > revision
+        revision = updated["settings_revision"]
+    assert settings_request("1080p").startswith(b"HTTP/1.1 202")
+    assert json.loads(request("/settings")[2])["settings_revision"] == revision
+    for invalid in ("8k", "1080p&ignored=true", "", "720p%00", "720p\0"):
+        assert settings_request(invalid).startswith(b"HTTP/1.1 400")
+    assert settings_request("720p", custom=False).startswith(b"HTTP/1.1 403")
+    assert settings_request("720p", length=65).startswith(b"HTTP/1.1 413")
+    assert settings_request("720p", extra=b"Content-Length: 16\r\n").startswith(b"HTTP/1.1 400")
+    assert settings_request("720p", extra=b"Transfer-Encoding: chunked\r\n").startswith(b"HTTP/1.1 400")
+    assert json.loads(request("/settings")[2])["requested_resolution"] == "1080p"
 
     # Eight slots, then a real HTTP error; closing idle viewers releases slots
     # even though no capture frame has ever arrived.

@@ -1,0 +1,110 @@
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_avcap.c -o build/test_avcap
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+./build/test_avcap
+avcap: Initialize -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: RequestKeyFrame -> 0x81950008
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x81950008
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x81950001 (0 bytes)
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x80c78000
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1280x720@60 5000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 2560x1440@60 16000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 3840x2160@30 32000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (10 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator STOP -> 0x0
+avcap: sequencing, RA cleanup, nonblocking status, headers, keyframe requests and timestamps pass
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_audio.c -o build/test_audio
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+./build/test_audio
+audio: capture sample clock regressed
+audio: unsupported PCM block size 4096 (expected 8192)
+audio: capture sample clock regressed
+audio tests passed
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_capture_loop.c src/flv.c src/settings.c -o build/test_capture_loop
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+./build/test_capture_loop
+main: PCM clock pts=950000 us monotonic_ms=1100
+main: video clock pts=1033000 dts=1000000 us monotonic_ms=1100
+main: PCM clock pts=990000 us monotonic_ms=1100
+main: PCM clock pts=1010000 us monotonic_ms=1100
+main: video clock pts=600000 dts=600000 us monotonic_ms=1100
+main: PCM clock pts=610000 us monotonic_ms=1100
+main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
+main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
+main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
+main: PCM clock pts=1100000 us monotonic_ms=1100
+main: PCM clock pts=1090000 us monotonic_ms=1100
+main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
+main: no usable audio for 10 seconds; reopening capture
+main: audio capture/encoder unavailable
+main: video clock pts=18446744073709551615 dts=1 us monotonic_ms=1100
+main: video clock pts=1000000 dts=1000000 us monotonic_ms=1100
+PS5 HDMI Stream test: PID 1480 HTTP 18080
+capture-loop timing, configuration, restart and cleanup passed
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/test_transport.c src/flv.c -o build/test_transport
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+./build/test_transport
+transport regressions passed
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/http_fixture.c src/http.c src/flv.c src/status.c src/settings.c -o build/http_fixture
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+python3 tests/test_http.py build/http_fixture
+HTTP integration: fragmented requests, truthful status, local player, exact routes, capacity and idle disconnects passed
+node tests/test_preview.cjs
+PASS: fullscreen player autoplays muted without a gesture and skips dashboard-only requests
+PASS: dashboard waits for Play; capture failures and stale media never claim live
+PASS: fullscreen player waits through applying, then autoplays the ready source
+PASS: blocked autoplay offers a persistent native-control fallback and recovers on playback
+PASS: unsupported browser and offline errors remain truthful across polls
+PASS: polling preserves an unapplied capture-resolution selection
+PASS: settings POST sends the chosen preset once, protects pending work, then follows accepted state
+PASS: a newer selection made during an older POST is preserved after its response
+PASS: settings failure stays visible and preserves the choice until the user retries or edits
+PASS: settings timeout aborts the request and permits a retry
+PASS: capture generations and resolution changes replace the player while preserving user audio choice
+PASS: stream completion and errors reconnect with backoff; old callbacks cannot destroy a replacement
+Dashboard/player behavior: 12 scenarios passed
+clang -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -pthread -Isrc tests/transport_fixture_server.c src/flv.c src/http.c src/status.c src/settings.c -o build/transport_fixture
+ld: warning: reducing alignment of section __DATA,__common from 0x8000 to 0x4000 because it exceeds segment maximum alignment
+python3 tests/test_streaming.py build/transport_fixture
+HTTP-FLV simultaneous viewers and late join H.264 + stereo AAC decode passed: [{'0': 60, '1': 94}, {'0': 60, '1': 94}, {'0': 59, '1': 94}]

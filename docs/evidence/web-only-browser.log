@@ -1,0 +1,28 @@
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '720p',
+  width: 1280,
+  height: 720,
+  frames: 8,
+  audioBytes: 6145,
+  time: 0.053145,
+  muted: false
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1440p',
+  width: 2560,
+  height: 1440,
+  frames: 13,
+  audioBytes: 6485,
+  time: 0.145293,
+  muted: false
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1080p',
+  width: 1920,
+  height: 1080,
+  frames: 4,
+  audioBytes: 3754,
+  time: 0.022404,
+  muted: false
+}
+Autoplay without a gesture, viewport coverage, audio, dashboard controls and reconnect passed.

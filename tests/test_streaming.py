@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decode real H.264/AAC through HTTP-FLV and RTMP using a host fixture server.
+"""Decode real H.264/AAC through HTTP-FLV using a host fixture server.
 
 Usage: python3 tests/test_streaming.py path/to/transport-fixture-server
 Requires ffmpeg with libx264 and AAC. This validates transport, not PS5 capture.
@@ -41,9 +41,7 @@ def decode(url):
 ffmpeg = shutil.which("ffmpeg")
 if not ffmpeg:
     raise SystemExit("ffmpeg is required for the streaming integration test")
-rtmp_port, http_port = available_port(), available_port()
-while http_port == rtmp_port:
-    http_port = available_port()
+http_port = available_port()
 with tempfile.TemporaryDirectory(prefix="ps5hs-stream-test-") as tmp:
     fixture = Path(tmp) / "fixture.flv"
     subprocess.run([
@@ -57,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix="ps5hs-stream-test-") as tmp:
     log_path = Path(tmp) / "server.log"
     with log_path.open("w+") as log:
         server = subprocess.Popen([
-            sys.argv[1], str(fixture), str(rtmp_port), str(http_port)
+            sys.argv[1], str(fixture), str(http_port)
         ], stdout=log, stderr=log)
         try:
             status_url = f"http://127.0.0.1:{http_port}/status"
@@ -72,8 +70,7 @@ with tempfile.TemporaryDirectory(prefix="ps5hs-stream-test-") as tmp:
                     time.sleep(.02)
             else:
                 raise AssertionError("fixture did not start")
-            urls = [f"rtmp://127.0.0.1:{rtmp_port}/live/stream",
-                    f"http://127.0.0.1:{http_port}/live.flv"]
+            urls = [f"http://127.0.0.1:{http_port}/live.flv"] * 2
             with ThreadPoolExecutor(max_workers=2) as pool:
                 results = list(pool.map(decode, urls))
             # Late join after the fixture loops must also receive codec headers.
@@ -86,17 +83,7 @@ with tempfile.TemporaryDirectory(prefix="ps5hs-stream-test-") as tmp:
                 time.sleep(.1)
             assert clients == 0, clients
             assert server.poll() is None
-            # Slow/incomplete handshakes cannot allocate unbounded workers.
-            pending = []
-            try:
-                for _ in range(24):
-                    pending.append(socket.create_connection(("127.0.0.1", rtmp_port), timeout=3))
-                with socket.create_connection(("127.0.0.1", rtmp_port), timeout=3) as rejected:
-                    assert rejected.recv(1) == b"", "RTMP worker limit must close excess connections"
-            finally:
-                for connection in pending:
-                    connection.close()
-            print(f"HTTP-FLV/RTMP H.264 + stereo AAC decode passed: {results}")
+            print(f"HTTP-FLV simultaneous viewers and late join H.264 + stereo AAC decode passed: {results}")
         finally:
             server.terminate()
             try:

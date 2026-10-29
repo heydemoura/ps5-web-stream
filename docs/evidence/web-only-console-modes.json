@@ -1,0 +1,159 @@
+{
+  "720p": {
+    "passed": true,
+    "status": {
+      "capture_state": "streaming",
+      "error": 0,
+      "video_frames": 7,
+      "audio_frames": 6,
+      "last_video_ms": 356,
+      "last_audio_ms": 388,
+      "video_age_ms": 15,
+      "audio_age_ms": 32,
+      "video": "1280x720",
+      "fps": 60.0,
+      "audio": true,
+      "clients": 0,
+      "requested_resolution": "720p",
+      "active_resolution": "720p",
+      "settings_revision": 2,
+      "capture_revision": 2,
+      "stream_revision": 2,
+      "applying": false,
+      "resolutions": [
+        "4k",
+        "1440p",
+        "1080p",
+        "720p"
+      ]
+    },
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1280,
+          "height": 720,
+          "nb_read_frames": "179"
+        },
+        {
+          "codec_name": "aac",
+          "sample_rate": "48000",
+          "channels": 2,
+          "nb_read_frames": "139"
+        }
+      ],
+      "format": {
+        "duration": "3.035000"
+      }
+    },
+    "decode_errors": ""
+  },
+  "1080p": {
+    "passed": true,
+    "status": {
+      "capture_state": "streaming",
+      "error": 0,
+      "video_frames": 324,
+      "audio_frames": 256,
+      "last_video_ms": 5797,
+      "last_audio_ms": 5817,
+      "video_age_ms": 4,
+      "audio_age_ms": 20,
+      "video": "1920x1080",
+      "fps": 60.0,
+      "audio": true,
+      "clients": 0,
+      "requested_resolution": "1080p",
+      "active_resolution": "1080p",
+      "settings_revision": 3,
+      "capture_revision": 3,
+      "stream_revision": 3,
+      "applying": false,
+      "resolutions": [
+        "4k",
+        "1440p",
+        "1080p",
+        "720p"
+      ]
+    },
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1920,
+          "height": 1080,
+          "nb_read_frames": "179"
+        },
+        {
+          "codec_name": "aac",
+          "sample_rate": "48000",
+          "channels": 2,
+          "nb_read_frames": "140"
+        }
+      ],
+      "format": {
+        "duration": "3.035000"
+      }
+    },
+    "decode_errors": ""
+  },
+  "1440p": {
+    "passed": true,
+    "status": {
+      "capture_state": "streaming",
+      "error": 0,
+      "video_frames": 648,
+      "audio_frames": 509,
+      "last_video_ms": 11266,
+      "last_audio_ms": 11231,
+      "video_age_ms": 6,
+      "audio_age_ms": 3,
+      "video": "2560x1440",
+      "fps": 60.0,
+      "audio": true,
+      "clients": 0,
+      "requested_resolution": "1440p",
+      "active_resolution": "1440p",
+      "settings_revision": 4,
+      "capture_revision": 4,
+      "stream_revision": 4,
+      "applying": false,
+      "resolutions": [
+        "4k",
+        "1440p",
+        "1080p",
+        "720p"
+      ]
+    },
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 2560,
+          "height": 1440,
+          "nb_read_frames": "178"
+        },
+        {
+          "codec_name": "aac",
+          "sample_rate": "48000",
+          "channels": 2,
+          "nb_read_frames": "141"
+        }
+      ],
+      "format": {
+        "duration": "3.016000"
+      }
+    },
+    "decode_errors": ""
+  },
+  "4k": {
+    "passed": false,
+    "error": "4k: capture error 0x8195000a"
+  }
+}

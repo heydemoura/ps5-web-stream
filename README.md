@@ -1,18 +1,47 @@
 # PS5 HDMI Stream
 
-A PlayStation 5 homebrew payload that streams the console's video and audio
-over a local network, without a capture card. It serves an H.264/AAC browser
-preview from the console and an RTMP feed for OBS.
+A web-only PlayStation 5 homebrew payload that streams console video and audio
+over your local network, without a capture card. The console serves the
+settings dashboard, a fullscreen player and the H.264/AAC media stream.
 
-**Verified on the test console:** native 1920×1080 H.264 at approximately
-59.94 fps, 48 kHz stereo AAC, live Chrome playback with audio, and an actual OBS
-Media Source. Concurrent HTTP-FLV and RTMP captures decoded cleanly for 90
-seconds and contained identical media. See [validation results and limits](docs/VALIDATION.md)
-and [capture API findings](docs/AVCAP2.md).
+**Current verification:** native 720p, 1080p and 1440p video with 48 kHz stereo
+AAC decode correctly on the test console. Chrome verified automatic muted
+playback, desktop/mobile viewport coverage, audio, and resolution changes from
+a separate dashboard tab. **4K is selectable but remains under investigation:**
+the current capture attempt returns `0x8195000a`. Full four-resolution support
+is not yet complete. See [validation results](docs/VALIDATION.md).
 
-The verified instance uses **[http://192.168.0.190:8081/](http://192.168.0.190:8081/)**
-and **`rtmp://192.168.0.190:1936/live/stream`**. Normal build defaults remain
-HTTP `8080` and RTMP `1935`.
+The test instance uses:
+
+- Dashboard: **[http://192.168.0.190:8081/](http://192.168.0.190:8081/)**
+- Fullscreen player: **[http://192.168.0.190:8081/player](http://192.168.0.190:8081/player)**
+
+The normal build default is HTTP port `8080`.
+
+## Watch and configure
+
+Open `/player` to fill the browser viewport with live video. Playback starts
+muted automatically, without pressing Play. Select **Unmute** for audio. If the
+browser blocks playback, use its video Play control. A browser with H.264/AAC
+MediaSource support is required.
+
+The dashboard at `/` has a preview, capture diagnostics and a resolution
+selector. Choose a resolution and select **Apply resolution**. This changes the
+console capture for **all viewers**; connected players reconnect automatically.
+Changing the selector alone does not apply it. Requested settings remain in
+memory for the current payload session; restarting the payload selects 1080p.
+
+| Selection | Capture dimensions | Configured fps / kbps | Console verification |
+|---|---|---|---|
+| 720p | 1280 × 720 | 60 / 5000 | Video + audio passed |
+| 1080p | 1920 × 1080 | 60 / 8000 | Video + audio passed; default |
+| 1440p | 2560 × 1440 | 60 / 16000 | Video + audio passed |
+| 4K | 3840 × 2160 | 30 / 32000 | Pending: capture open fails |
+
+Rates are encoder configuration values; actual cadence and bitrate can vary.
+The selected resolution is a capture request, not a browser scaling option.
+`/status` distinguishes the requested mode from the active mode. If 4K fails,
+select one of the verified modes to resume viewing.
 
 ## Architecture
 
@@ -22,146 +51,125 @@ libSceAvcap2 audio ── float PCM ── libSceM4aacEnc ─┤
                                                 ▼
                                            FLV muxer
                                                 ▼
-                                          broadcaster
-                                   ┌────────────┴────────────┐
-                                 RTMP                      HTTP
-                               OBS pull               browser + FLV
+                                      bounded broadcaster
+                                                ▼
+                                           HTTP server
+                                  dashboard / player / live.flv
 ```
 
-Firmware libraries are resolved at runtime. Video uses the console's encoded
-capture output; audio uses its native AJM AAC encoder. ResourceArbitrator
-negotiation, complete versioned capture records, native SPS/PPS and periodic
-keyframe requests establish a decodable video feed. Capture clocks are mapped
-to a continuous audio/video timeline, including after a capture restart.
+Firmware libraries are resolved at runtime. Native H.264 capture uses
+ResourceArbitrator negotiation, complete capture records, SPS/PPS and periodic
+keyframe requests. Native AJM encoding supplies AAC. Source clocks are mapped
+to a continuous audio/video timeline, including capture restarts.
 
-One capture loop feeds up to **eight viewers shared across both transports**.
-Each viewer has a bounded queue; a slow viewer resumes at a keyframe with codec
-headers, without blocking capture or corrupting an in-flight tag. The preview
-page and its pinned flv.js dependency are embedded in the ELF, with no CDN
-requirement. `/status` reports errors, media counts and frame age; the preview
-shows “live” only after playback advances.
+One capture loop serves up to **eight media viewers**. Each has a bounded queue;
+slow viewers resume at a keyframe with codec headers without blocking capture.
+The HTML, application JavaScript and pinned flv.js player are embedded in the
+ELF, so no CDN is needed. Capture failures and pending changes remain visible;
+the player shows “live” only after playback advances.
 
-## Build
+## Build and deploy
 
-Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, and `xxd`:
+Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, and Python 3:
 
 ```sh
 export PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk  # or ~/opt/ps5-payload-sdk
 export LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config  # macOS
-make
+make HTTP_PORT=8081
 ```
 
-Output: `ps5-hdmi-stream.elf`, using ports `8080` / `1935`. To build with the
-ports used for the verified instance:
+This builds `ps5-hdmi-stream.elf`. Omit `HTTP_PORT` to use `8080`. Web assets are
+embedded by `tools/embed.py`; `xxd` is not required.
 
-```sh
-make HTTP_PORT=8081 RTMP_PORT=1936
-```
-
-## Run
-
-Send the compiled ELF unchanged to a running ELF loader (Python 3 required):
+Stop an existing capture copy, then send the compiled ELF unchanged to a running
+ELF loader:
 
 ```sh
 python3 tools/deploy.py 192.168.0.190 9021 ps5-hdmi-stream.elf
 ```
 
-This preserves the ports compiled into that file. Alternatively, build and
-upload together:
+Alternatively, build and upload together:
 
 ```sh
-make deploy PS5_HOST=192.168.0.190 HTTP_PORT=8081 RTMP_PORT=1936
+make deploy PS5_HOST=192.168.0.190 HTTP_PORT=8081
 ```
 
-**`make deploy` rebuilds the ELF.** Repeat `HTTP_PORT` / `RTMP_PORT` overrides on
-that command; omitting them rebuilds with `8080` / `1935`. The loader port is
-`9021` by default (`PS5_PORT` overrides it). Stop an existing copy before
-replacing it: the capture resource is shared with other capture clients. Upload
-success confirms transfer; check `/status` and `/log` for capture results.
+**`make deploy` rebuilds the ELF.** Repeat the `HTTP_PORT` override or it rebuilds
+with port `8080`. The loader port defaults to `9021` (`PS5_PORT` overrides it).
+Upload success confirms transfer; check `/status` and `/log` for capture results.
+A loader supporting arguments can pass `[http_port] [--scanin]`; the HTTP port
+must be between 1 and 65535. Scan-in setup remains an experimental opt-in,
+disabled by default. See [capture API notes](docs/AVCAP2.md).
 
-For the verified ports, open `http://192.168.0.190:8081/` and select **Play
-preview**. Audio starts muted; select **Unmute** once audio is available. The
-browser needs H.264/AAC MediaSource playback support.
+## HTTP API
 
-In OBS, add a **Media Source**, uncheck **Local File**, and use:
-
-```text
-rtmp://192.168.0.190:1936/live/stream
-```
-
-`http://192.168.0.190:8081/live.flv` carries the same feed. Substitute your
-console address and chosen ports as needed.
-
-| Default port | Endpoint | Purpose |
+| Method | Endpoint | Purpose |
 |---|---|---|
-| 8080 | `/` | Preview and diagnostics |
-| 8080 | `/live.flv` | HTTP-FLV stream |
-| 8080 | `/status` | Capture state, errors, media counters, viewers |
-| 8080 | `/log` | Recent payload log |
-| 1935 | `/live/stream` | RTMP playback for OBS/FFmpeg |
+| GET | `/` | Dashboard and capture controls |
+| GET | `/player` | Fullscreen page with muted autoplay |
+| GET | `/live.flv` | Live H.264/AAC HTTP-FLV stream |
+| GET | `/status` | Capture errors, counters, frame age and settings state |
+| GET | `/settings` | Requested/active resolution and revision state |
+| POST | `/settings` | Request a shared capture resolution |
+| GET | `/log` | Recent payload log |
 
-A loader supporting arguments can pass `[http_port] [rtmp_port] [--scanin]`.
-Ports must differ and be between 1 and 65535. Scan-in negotiation is an
-experimental opt-in, disabled by default. The working backend does not require
-Share initialization or permission sweeps; the interface is documented in
-[AVCAP2.md](docs/AVCAP2.md).
+To request a resolution:
+
+```sh
+curl -X POST http://192.168.0.190:8081/settings \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'X-PS5HS-Request: 1' --data 'resolution=1440p'
+```
+
+Valid values are `720p`, `1080p`, `1440p`, and `4k`. A `202 Accepted` response
+acknowledges the request; it does not mean native capture succeeded. Check
+`capture_state`, `requested_resolution`, `active_resolution`, and `applying` in
+`/status`. `settings_revision` identifies requests, `capture_revision` identifies
+the configuration being attempted, and `stream_revision` identifies capture
+sessions so viewers can reconnect when the source changes.
 
 ## Tests
 
 Host tests need Clang with AddressSanitizer/UndefinedBehaviorSanitizer,
-Python 3, Node.js, `xxd`, and FFmpeg with H.264 (`libx264`) and AAC support:
+Python 3, Node.js, and FFmpeg with `libx264` and AAC support:
 
 ```sh
 make test
 ```
 
-This runs without the SDK or a console deployment. It covers capture lifecycle,
-audio framing and clocks, muxing, bounded fan-out, RTMP framing, HTTP behavior,
-preview states, and simultaneous/late-join decoding with synthetic media.
+The suite runs without the SDK or console deployment. It covers firmware-call
+lifecycle using mocks, clocks, muxing, bounded queues, HTTP/settings behavior,
+autoplay, settings races, reconnect, and concurrent/late-join HTTP-FLV decoding.
 
-`make probe-audio` and `make probe-video` build finite console probes with the
-SDK; building them does not deploy them. Optional browser tests cover both
-capture-error UI and actual media playback. Reproduction commands and retained
-hardware results are in [docs/VALIDATION.md](docs/VALIDATION.md).
+Opt-in hardware tests decode every requested mode and exercise the dashboard
+with a real browser. They change shared capture settings and restore 1080p on
+exit. Commands, mode results and current limitations are in
+[docs/VALIDATION.md](docs/VALIDATION.md).
 
 ## Limits
 
-- Validated output is 1080p SDR with the nominal 60-fps / 8000-kbps configuration;
-  actual cadence is approximately 59.94 Hz and bitrate is variable.
-- Eight active media viewers total; HTTP has 24 connection workers. Pending
-  media per viewer is limited to 6 MiB / 1,024 tags, plus the current tag.
-- HTTP headers are limited to 8 KiB with a five-second complete-request
-  deadline; stalled writes time out and idle disconnected viewers release slots.
-- The console recovered automatically from an observed capture read failure.
-  A brief interruption during a reopen is possible.
-- Cold-boot behavior, other firmware versions, HDR, other video modes and
-  multi-hour operation are untested. A prior diagnostic enabled scan-in in the
-  tested console session; its effect after a fresh boot remains to be checked.
-- Perceptual A/V offset and glass-to-glass latency have not been measured;
-  monotonic timestamps and successful playback do not establish their precision.
-- This is a LAN playback server without authentication, TLS, RTMP publishing,
-  recording controls, or internet relay/NAT traversal.
+- 4K capture remains unresolved; the four-resolution objective is still open.
+- Eight media viewers; 24 HTTP workers; up to 6 MiB / 1,024 pending tags per
+  viewer, plus the tag currently being sent. HTTP headers are limited to 8 KiB
+  with a five-second request deadline; stalled/disconnected clients are released.
+- Resolution changes and capture recovery briefly interrupt playback. Settings
+  are shared by viewers and reset to 1080p when the payload restarts.
+- Cold-boot behavior, other firmware versions, HDR and multi-hour operation
+  remain untested. Earlier diagnostics enabled scan-in during this console
+  session, so fresh-boot independence from that step is not established.
+- Perceptual A/V offset and glass-to-glass latency have not been measured.
+- This is a LAN server without authentication, TLS, internet relay or NAT traversal.
 
-## Layout
+## Layout and license
 
-| Path | Purpose |
-|---|---|
-| `src/main.c` | Capture lifecycle and audio/video timeline |
-| `src/avcap.*`, `src/scanin.*` | Firmware capture and optional scan-in interfaces |
-| `src/audio.*` | PCM capture, native AAC encoding and audio framing |
-| `src/flv.*` | H.264/AAC FLV muxing and bounded broadcaster |
-| `src/rtmp.*`, `src/http.*` | Playback servers |
-| `src/status.*` | Thread-safe capture diagnostics |
-| `web/` | Embedded preview and vendored player/license |
-| `tests/` | Host regressions, integration fixtures and console probes |
-| `tools/deploy.py` | Cross-platform ELF upload |
-| `docs/` | Capture findings and validation evidence |
-
-## License
+`src/main.c` manages capture; `avcap.*`, `scanin.*` and `audio.*` implement native
+media interfaces; `flv.*` muxes and broadcasts; `http.*`, `settings.*` and
+`status.*` provide the web server and controls. `web/` contains the dashboard,
+fullscreen player and embedded dependencies; `tests/` contains regressions,
+fixtures and console probes.
 
 For use on a console you own. No Sony code is included; firmware libraries are
-resolved from the console at runtime. Project code is GPLv3+ (see `LICENSE`).
-The vendored flv.js player is Apache-2.0; its license and provenance are in
-[`web/vendor/`](web/vendor/README.md).
+resolved at runtime. Project code is GPLv3+ (`LICENSE`). The vendored flv.js
+player is Apache-2.0; see its [license and provenance](web/vendor/README.md).
 
 [sdk]: https://github.com/ps5-payload-dev/sdk

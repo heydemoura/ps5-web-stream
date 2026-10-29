@@ -50,6 +50,7 @@ typedef struct {
   uint64_t audio_pts[4];
   uint64_t advance;
   int stop;
+  const char *resolution;
 } source_step;
 static source_step steps[16];
 static size_t step_count, step_index;
@@ -93,6 +94,7 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   current = &steps[step_index++]; audio_index = 0;
   fake_now += current->advance;
   if (current->stop) on_signal(SIGTERM);
+  if (current->resolution) assert(capture_settings_request(current->resolution) >= 0);
   if (!current->len) return 0;
   assert(size >= current->len); memcpy(buf, current->data, current->len);
   fr->len = current->len; fr->dts_us = current->dts; fr->pts_us = current->pts;
@@ -123,15 +125,13 @@ int audio_encoder_encode(audio_encoder *encoder, const float *pcm,
   packet->data[0] = 0xaa; packet->len = 1; packet->pts_us = pts; return 1;
 }
 size_t audio_encoder_config(uint8_t out[2]) { out[0] = 0x11; out[1] = 0x90; return 2; }
-int http_server_start(broadcaster *b, int port, int rtmp_port) {
-  assert(b && port == 18080 && rtmp_port == 11935); return 0;
-}
-int rtmp_server_start(broadcaster *b, int port) { assert(b && port == 11935); return 0; }
+int http_server_start(broadcaster *b, int port) { assert(b && port == 18080); return 0; }
 
 static void reset_test(void) {
   broadcaster_reset(&g_bc);
   assert(g_bc.have_audio == 1);
   stopping = 0; fake_now = 1100;
+  capture_settings_request("1080p");
   opened_audio = closed_audio = opened_encoder = closed_encoder = 0;
   audio_open_fails = 0;
   step_count = step_index = record_count = 0;
@@ -148,6 +148,20 @@ static void check_cleanup(void) {
   assert(opened_encoder == 1 && closed_encoder == 1);
 }
 
+static int run_capture(void) {
+  capture_settings settings; capture_settings_get(&settings);
+  capture_settings_begin(&settings);
+  return capture_loop(1000, settings.revision);
+}
+static void test_resolution_change(void) {
+  reset_test();
+  add_video(full_idr, sizeof(full_idr), 1000000, 1000000);
+  steps[0].resolution = "4k";
+  assert(run_capture() == 1); check_cleanup();
+  capture_settings settings; capture_settings_get(&settings);
+  assert(settings.width == 3840 && settings.height == 2160);
+  assert(step_index == 1); /* interrupted promptly, without waiting for watchdog */
+}
 static void test_shared_clock_and_restart(void) {
   reset_test(); next_epoch_ms = 0;
   add_video(sps_data, sizeof(sps_data), 1000000, 1000000);
@@ -160,7 +174,7 @@ static void test_shared_clock_and_restart(void) {
   add_video(p_data, sizeof(p_data), 1033333, 1000000);
   steps[4].audio_count = 1; steps[4].audio_pts[0] = 1042666;
   stop_source();
-  assert(capture_loop(1000) == 0); check_cleanup();
+  assert(run_capture() == 0); check_cleanup();
   assert(record_count == 4 && video_status_count == 2 && audio_status_count == 2);
   assert(records[0].type == 9 && records[0].key && records[0].ts == 100 && records[0].cts == 33);
   assert(records[1].type == 8 && records[1].ts == 110);
@@ -170,7 +184,7 @@ static void test_shared_clock_and_restart(void) {
   reset_test(); /* Wall clock has not caught up to the source's last timestamp. */
   add_video(full_idr, sizeof(full_idr), 600000, 600000);
   steps[0].audio_count = 1; steps[0].audio_pts[0] = 610000;
-  stop_source(); assert(capture_loop(1000) == 0); check_cleanup();
+  stop_source(); assert(run_capture() == 0); check_cleanup();
   assert(record_count == 2 && records[0].ts == 143 && records[1].ts == 153);
 }
 static void test_config_change(void) {
@@ -181,7 +195,7 @@ static void test_config_change(void) {
   add_video(changed_sps, sizeof(changed_sps), 1010000, 1010000);
   add_video(pps_data, sizeof(pps_data), 1020000, 1020000);
   add_video(idr_data, sizeof(idr_data), 1033333, 1033333);
-  stop_source(); assert(capture_loop(1000) == 0); check_cleanup();
+  stop_source(); assert(run_capture() == 0); check_cleanup();
   assert(record_count == 2 && records[0].key && records[1].key);
   assert(g_bc.avc_cfg[3] == 0x29); /* Latest SPS level is published. */
 }
@@ -189,34 +203,34 @@ static void test_regressions_and_stalls(void) {
   reset_test();
   add_video(full_idr, sizeof(full_idr), 1000000, 1000000);
   add_video(p_data, sizeof(p_data), 999999, 1000000);
-  assert(capture_loop(1000) < 0); check_cleanup(); assert(record_count == 1);
+  assert(run_capture() < 0); check_cleanup(); assert(record_count == 1);
   reset_test();
   add_video(full_idr, sizeof(full_idr), 1000000, 1000000);
   steps[0].audio_count = 1; steps[0].audio_pts[0] = 1100000;
   add_video(p_data, sizeof(p_data), 1033333, 1033333);
   steps[1].audio_count = 1; steps[1].audio_pts[0] = 1090000;
-  assert(capture_loop(1000) < 0); check_cleanup(); assert(record_count == 3);
+  assert(run_capture() < 0); check_cleanup(); assert(record_count == 3);
   reset_test();
   add_video(full_idr, sizeof(full_idr), 1000000, 1000000);
   add_video(p_data, sizeof(p_data), 1033333, 1033333); steps[1].advance = 10001;
-  assert(capture_loop(1000) < 0); check_cleanup(); assert(audio_status_count == 0);
+  assert(run_capture() < 0); check_cleanup(); assert(audio_status_count == 0);
   assert(!strcmp(last_state, "waiting"));
 }
 static void test_failures_and_signal(void) {
   reset_test(); stop_source();
-  assert(capture_loop(1000) == 0); check_cleanup(); assert(record_count == 0);
+  assert(run_capture() == 0); check_cleanup(); assert(record_count == 0);
   reset_test(); audio_open_fails = 1;
-  assert(capture_loop(1000) < 0);
+  assert(run_capture() < 0);
   assert(!closed_audio && closed_encoder == 1);
   reset_test();
   add_video(full_idr, sizeof(full_idr), 1, UINT64_MAX);
-  assert(capture_loop(1000) < 0); check_cleanup(); assert(record_count == 0);
+  assert(run_capture() < 0); check_cleanup(); assert(record_count == 0);
 }
 static void test_entry_cleanup(void) {
   reset_test(); stop_source();
   pthread_mutex_destroy(&g_bc.mtx); /* entry point initializes its broadcaster */
-  char *args[] = {"payload", "18080", "11935", NULL};
-  assert(payload_entry(3, args) == 0);
+  char *args[] = {"payload", "18080", NULL};
+  assert(payload_entry(2, args) == 0);
   check_cleanup();
   assert(video_closes == 1 && terminations == 1 && init_count == 1);
   assert(g_bc.have_audio == 1 && !g_bc.avc_cfg_len && !g_bc.aac_cfg_len);
@@ -224,7 +238,7 @@ static void test_entry_cleanup(void) {
 int main(void) {
   broadcaster_init(&g_bc); g_bc.have_audio = 1;
   test_shared_clock_and_restart(); test_config_change(); test_regressions_and_stalls();
-  test_failures_and_signal(); test_entry_cleanup();
+  test_failures_and_signal(); test_resolution_change(); test_entry_cleanup();
   pthread_mutex_destroy(&g_bc.mtx);
   puts("capture-loop timing, configuration, restart and cleanup passed");
   return 0;
