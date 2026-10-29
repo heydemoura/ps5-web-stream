@@ -34,8 +34,8 @@ memory for the current payload session; restarting the payload selects 1080p.
 |---|---|---|---|
 | 720p | 1280 × 720 | 60 / 5000 | Video + audio passed |
 | 1080p | 1920 × 1080 | 60 / 8000 | Video + audio passed; default |
-| 1440p | 2560 × 1440 | 30 / 16000 | Video + audio passed |
-| 4K | 3840 × 2160 | 30 / 32000 | Video + audio passed |
+| 1440p | 2560 × 1440 | 60 / 16000 | Video + audio passed |
+| 4K | 3840 × 2160 | 60 / 32000 | Video + audio passed |
 
 Rates are encoder configuration values; actual cadence and bitrate can vary.
 The selected resolution is a capture request, not a browser scaling option.
@@ -148,8 +148,11 @@ exit. Commands, mode results and current limitations are in
 
 ## Limits
 
-- The verified 1440p and 4K presets use 30 fps; 60 fps at these resolutions is
-  not supported by the current configuration.
+- All four presets use nominal 60 fps, verified at fixed 59.94/60-Hz SDR output.
+  HDR, VRR and 120-Hz output are not covered by this validation.
+- Old experimental capture clients can retain a failed native device. If native
+  Start repeatedly fails after experimentation, restart the console and relaunch
+  the jailbreak/loader before running this payload.
 - Eight media viewers; 24 HTTP workers; up to 6 MiB / 1,024 pending tags per
   viewer, plus the tag currently being sent. HTTP headers are limited to 8 KiB
   with a five-second request deadline; stalled/disconnected clients are released.

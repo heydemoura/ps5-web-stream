@@ -1,0 +1,50 @@
+{
+  "base_commit": "bc5ff35195a81774438e1176c2fcc1b5984f20c7",
+  "elf_sha256": "ebfd6a92294ec50b81cf02d3a96806ca8291f5d7eba5236502f7432c989db52d",
+  "source_sha256": {
+    "src/flv.c": "f0c37afa20946f9fe99f27d9f017d9a452351107eeb66bb9b97e87e5482248a2",
+    "src/main.c": "31093064c1fab06ede878bd1362e2237b3f302587e2ba1f3f3ea833318664b5f",
+    "src/settings.c": "91f6722293dc9c447d56baba6b987efe017d907cbcaaca44693b4f7676bfa206",
+    "src/http.c": "ce6c364b55b5d70126e7057848cfeb94f33aeb767f1e8453638b04af0ba1cb89",
+    "src/status.c": "fd18cb0a2e0810c25ff9ff75845d04bd81190a4bbf1ec6c969a8c5579ae595d2",
+    "src/avcap.c": "b7ea37d51622b50701ed5a4164460111f6fab16160df5796cc8cd0e4bbd0fe7f",
+    "src/audio.c": "6affa5409fa446851241e32807295739dbf3a988510298c8541207145f782413"
+  },
+  "build_command": "PS5_PAYLOAD_SDK=/Users/heyde/opt/ps5-payload-sdk LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config make HTTP_PORT=8081",
+  "fresh_session": true,
+  "test_order": [
+    "4k",
+    "1440p",
+    "720p",
+    "1080p"
+  ],
+  "host_tests": "make test passed with ASan/UBSan; see high-resolution-60fps-host.log",
+  "final_status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 9032,
+    "audio_frames": 7110,
+    "last_video_ms": 152967,
+    "last_audio_ms": 153016,
+    "video_age_ms": 14,
+    "audio_age_ms": 13,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 2,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 9,
+    "capture_revision": 9,
+    "stream_revision": 9,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  },
+  "startup": "PS5 HDMI Stream bc5ff35-dirty: PID 98 HTTP 8081",
+  "browser_test": "All four modes passed, with wall-clock FPS and advancing audio; high-resolution-60fps-browser.log"
+}

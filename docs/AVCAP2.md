@@ -2,8 +2,7 @@
 
 The current payload serves native H.264 video and 48 kHz stereo AAC through
 HTTP-FLV, with a console-hosted dashboard and autoplay `/player` page. Its
-capture presets are 720p/1080p at nominal 60 fps and 1440p/3840×2160 at nominal
-30 fps. All four passed native H.264/AAC decoding on the test console. The
+capture presets are 720p, 1080p, 1440p and 3840×2160 at nominal 60 fps. All four passed native H.264/AAC decoding on the test console. The
 [validation ledger](VALIDATION.md) distinguishes decoded console
 results from host mocks and records the current all-mode verification status.
 RTMP has been removed from the active implementation.
@@ -122,12 +121,24 @@ Setting both `0xc8` and `0xcc` to the full rate with an incomplete set of
 associated controls produced a `Start` error `0x80c78000`. The native formula
 above and the production configuration successfully started and decoded.
 Four reference pictures keep 4K AVC within the intended level budget; the
-previous value of nine forced level 6.0. The dashboard currently requests 4K
-at 30 fps / 32000 kbps, 1440p at 30 / 16000, 1080p at 60 / 8000, and 720p at
-60 / 5000. These are encoder configuration values, not measured constant
-output rates. The 1440p 60-fps attempt failed at native Start with `0x81950008`;
-the final 30-fps preset passed. HDR color paths and higher-resolution 60-fps
-capture remain unverified.
+previous value of nine forced level 6.0. The dashboard requests all four modes at nominal 60 fps: 4K / 32000 kbps,
+1440p / 16000, 1080p / 8000, and 720p / 5000. Both high modes share RA 182
+and explicit cadence selector 1; 4K uses the four-reference-picture budget.
+A fresh console session passed 4K first and then 1440p with native dimensions,
+wall-clock delivery above 59 fps, monotonic timestamps, and full H.264/AAC decode.
+
+The earlier 1440p Start failure (`0x81950008`) persisted despite successful
+Close. Static analysis shows the normal-device cache key omits resource ID,
+and last-reference Close destroys the device. Another retained client was the
+working explanation; clearing all old clients through a console restart resolved
+it without a different 1440p configuration. This does not establish which old
+client retained the object; native memory was not inspected.
+
+Do not use cadence selector 2 as a 60fps workaround. It started both high modes
+but delivered only 30 frames per wall-clock second despite nominal 60 fps packet
+timestamps. The automatic Venc rate-control path differs from explicit selector 1;
+its exact hardware cause remains unproven. Hardware tests now measure both
+wall-clock throughput and packet cadence. HDR, VRR and 120-Hz output remain untested.
 
 ## Video headers, samples, and clock
 

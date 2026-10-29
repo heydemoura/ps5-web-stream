@@ -1,0 +1,140 @@
+PS5 HDMI Stream bc5ff35-dirty: PID 98 HTTP 8081
+http: listening on :8081
+avcap: Initialize -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 3840x2160@60 32000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=82781616 dts=82764933 us monotonic_ms=81213
+main: PCM clock pts=82821941 us monotonic_ms=81231
+main: PCM clock pts=82843275 us monotonic_ms=81247
+main: PCM clock pts=82864608 us monotonic_ms=81267
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 2560x1440@60 16000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=96722616 dts=96705933 us monotonic_ms=95154
+main: PCM clock pts=96756612 us monotonic_ms=95166
+main: PCM clock pts=96777945 us monotonic_ms=95188
+main: PCM clock pts=96799279 us monotonic_ms=95207
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1280x720@60 5000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (40 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=109766029 dts=109749345 us monotonic_ms=108197
+main: PCM clock pts=109812495 us monotonic_ms=108222
+main: PCM clock pts=109833829 us monotonic_ms=108239
+main: PCM clock pts=109855162 us monotonic_ms=108255
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=122263229 dts=122246545 us monotonic_ms=120694
+main: PCM clock pts=122297150 us monotonic_ms=120707
+main: PCM clock pts=122318483 us monotonic_ms=120728
+main: PCM clock pts=122339816 us monotonic_ms=120750
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 3840x2160@60 32000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=168848691 dts=168832008 us monotonic_ms=167280
+main: PCM clock pts=168884750 us monotonic_ms=167294
+main: PCM clock pts=168906083 us monotonic_ms=167310
+main: PCM clock pts=168927416 us monotonic_ms=167331
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb6 RUNNING
+avcap: OpenVideo 2560x1440@60 16000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=177469858 dts=177453175 us monotonic_ms=175901
+main: PCM clock pts=177509954 us monotonic_ms=175919
+main: PCM clock pts=177531287 us monotonic_ms=175939
+main: PCM clock pts=177552620 us monotonic_ms=175961
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb6 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1280x720@60 5000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (40 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=185993991 dts=185977308 us monotonic_ms=184425
+main: PCM clock pts=186036445 us monotonic_ms=184446
+main: PCM clock pts=186057779 us monotonic_ms=184463
+main: PCM clock pts=186079112 us monotonic_ms=184483
+avcap: Stop -> 0x0
+avcap: Close -> 0x0
+avcap: ResourceArbitrator 0xb4 STOP -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: video clock pts=194550720 dts=194534037 us monotonic_ms=192982
+main: PCM clock pts=194597162 us monotonic_ms=193007
+main: PCM clock pts=194618495 us monotonic_ms=193022
+main: PCM clock pts=194639829 us monotonic_ms=193038

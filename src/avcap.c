@@ -256,10 +256,10 @@ int avcap_open(const avcap_config *cfg) {
     }
   }
   LOG("avcap: NonVcl headers -> 0x%x (%zu bytes)", r, g_headers_len);
-  if (r < 0) { p_Close(handle); resource_release(); g_headers_len=0; return g_err=r; }
+  if (r < 0) { LOG("avcap: Close after open failure -> 0x%x", p_Close(handle)); resource_release(); g_headers_len=0; return g_err=r; }
   r = p_Start(handle);
   LOG("avcap: Start -> 0x%x", r);
-  if (r < 0) { p_Close(handle); resource_release(); return g_err = r; }
+  if (r < 0) { LOG("avcap: Close after open failure -> 0x%x", p_Close(handle)); resource_release(); return g_err = r; }
   g_video = handle;
   return g_err = 0;
 }
@@ -330,7 +330,11 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
 }
 
 void avcap_close(void) {
-  if (g_video) { p_Stop(g_video); p_Close(g_video); g_video = NULL; }
+  if (g_video) {
+    LOG("avcap: Stop -> 0x%x", p_Stop(g_video));
+    LOG("avcap: Close -> 0x%x", p_Close(g_video));
+    g_video = NULL;
+  }
   g_headers_len = 0;
   g_have_keyframe_clock = 0;
   g_clock_set = 0;

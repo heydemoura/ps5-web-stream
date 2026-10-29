@@ -147,7 +147,7 @@ int main(void) {
   release_error=0; avcap_close(); assert(!g_ra_owned && !running);
   static const avcap_config modes[] = {
     {1280,720,60,5000,0}, {1920,1080,60,8000,0},
-    {2560,1440,30,16000,0}, {3840,2160,30,32000,0}
+    {2560,1440,60,16000,0}, {3840,2160,60,32000,0}
   };
   for (unsigned i=0; i<4; i++) {
     expected_resolution=3+i; expected_bitrate=(uint32_t)modes[i].bitrate*1000;

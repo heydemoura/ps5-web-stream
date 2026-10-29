@@ -1,0 +1,49 @@
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '4k',
+  width: 3840,
+  height: 2160,
+  frames: 8,
+  audioBytes: 6052,
+  time: 0.05768,
+  muted: false,
+  fps: 59.9888780620073,
+  audioProgress: 79531,
+  wallFps: 59.98920194250615
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1440p',
+  width: 2560,
+  height: 1440,
+  frames: 4,
+  audioBytes: 4096,
+  time: 0.01595,
+  muted: false,
+  fps: 59.5775630897404,
+  audioProgress: 80141,
+  wallFps: 59.57616953218712
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '720p',
+  width: 1280,
+  height: 720,
+  frames: 8,
+  audioBytes: 6486,
+  time: 0.050618,
+  muted: false,
+  fps: 59.375928998384055,
+  audioProgress: 79872,
+  wallFps: 59.37506247347802
+}
+Dashboard applied capture resolution; fullscreen player resumed: {
+  mode: '1080p',
+  width: 1920,
+  height: 1080,
+  frames: 9,
+  audioBytes: 5461,
+  time: 0.086893,
+  muted: false,
+  fps: 59.581982408519664,
+  audioProgress: 79872,
+  wallFps: 59.58093410080364
+}
+Autoplay without a gesture, viewport coverage, audio, dashboard controls and reconnect passed.

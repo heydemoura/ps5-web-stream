@@ -1,0 +1,264 @@
+{
+  "4k60": {
+    "passed": true,
+    "media": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 3840,
+          "height": 2160,
+          "r_frame_rate": "60000/1001",
+          "nb_read_frames": "361"
+        },
+        {
+          "codec_name": "aac",
+          "r_frame_rate": "0/0",
+          "nb_read_frames": "280"
+        }
+      ],
+      "format": {
+        "duration": "6.038000"
+      }
+    },
+    "measured_video_fps": 59.94005994005994,
+    "full_decode_errors": "",
+    "video_dts_strictly_increasing": true,
+    "capture_sha256": "d796ba7854d8d80e3b290dfe74ba0c4815a6dd22a51854027ba191589d701814"
+  },
+  "1440p60": {
+    "passed": false,
+    "stage": "Start after successful OpenVideo and headers",
+    "error": "0x81950008",
+    "resource": 182,
+    "diagnosis": {
+      "status": "inferred; not a hardware frame-rate limit",
+      "evidence": "Native type-0 cache key omits resource ID. A cached object may retain headers after its encoder is deleted. Open reuse skips construction; Start rejects a missing encoder.",
+      "reset_search": "OpenVideo auto-start flag does not bypass cache; SetVideoEncodeConfig rejects missing encoders. No reset entry point found in inspected manager paths.",
+      "next_candidate": "Native cadence selector 2: supported for type-0 ScanIn, divisor 1, requires equal output min/max cadence; native Venc fps0 defaults5994. Current output enum3 maps to60. Probe at4K60 first, then1440p60; runtime acceptance still unverified."
+    }
+  },
+  "cadence2_rejected": {
+    "reason": "Timestamp-based fps passed but live source delivers only 30 frames per wall-clock second; not a 60fps fix.",
+    "4k_wall_samples": [
+      {
+        "seconds": 987459.0168485,
+        "video_frames": 2963
+      },
+      {
+        "seconds": 987464.062377625,
+        "video_frames": 3113
+      },
+      {
+        "seconds": 987469.077861708,
+        "video_frames": 3263
+      }
+    ],
+    "production_candidate_reverted": true,
+    "native_corroboration": "libSceVenc 0x9acd..0x9b9e: auto source fps0 and equal60/60 limits select a different rate-control mode2 with30-valued fields; explicit5994 bypasses this case. Exact hardware meaning remains inferred; wall-clock evidence independently establishes30fps."
+  },
+  "explicit60_retest": {
+    "4k": {
+      "passed": true,
+      "status": {
+        "capture_state": "streaming",
+        "error": 0,
+        "video_frames": 5,
+        "audio_frames": 4,
+        "last_video_ms": 362,
+        "last_audio_ms": 401,
+        "video_age_ms": 2,
+        "audio_age_ms": 8,
+        "video": "3840x2160",
+        "fps": 60.0,
+        "audio": true,
+        "clients": 0,
+        "requested_resolution": "4k",
+        "active_resolution": "4k",
+        "settings_revision": 2,
+        "capture_revision": 2,
+        "stream_revision": 2,
+        "applying": false,
+        "resolutions": [
+          "4k",
+          "1440p",
+          "1080p",
+          "720p"
+        ]
+      },
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 3840,
+            "height": 2160,
+            "nb_read_frames": "361"
+          },
+          {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2,
+            "nb_read_frames": "280"
+          }
+        ],
+        "format": {
+          "duration": "6.038000"
+        }
+      },
+      "wall_fps": 59.82824969290192,
+      "measured_fps": 59.94005994005994,
+      "monotonic_dts": true,
+      "decode_errors": ""
+    },
+    "1440p": {
+      "passed": false,
+      "error": "1440p: capture error 0x81950008"
+    },
+    "720p": {
+      "passed": true,
+      "status": {
+        "capture_state": "streaming",
+        "error": 0,
+        "video_frames": 828,
+        "audio_frames": 648,
+        "last_video_ms": 14530,
+        "last_audio_ms": 14576,
+        "video_age_ms": 7,
+        "audio_age_ms": 0,
+        "video": "1280x720",
+        "fps": 60.0,
+        "audio": true,
+        "clients": 0,
+        "requested_resolution": "720p",
+        "active_resolution": "720p",
+        "settings_revision": 4,
+        "capture_revision": 4,
+        "stream_revision": 4,
+        "applying": false,
+        "resolutions": [
+          "4k",
+          "1440p",
+          "1080p",
+          "720p"
+        ]
+      },
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 720,
+            "nb_read_frames": "358"
+          },
+          {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2,
+            "nb_read_frames": "281"
+          }
+        ],
+        "format": {
+          "duration": "6.038000"
+        }
+      },
+      "wall_fps": 59.18317178447328,
+      "measured_fps": 59.44055944055944,
+      "monotonic_dts": true,
+      "decode_errors": ""
+    },
+    "1080p": {
+      "passed": true,
+      "status": {
+        "capture_state": "streaming",
+        "error": 0,
+        "video_frames": 1568,
+        "audio_frames": 1231,
+        "last_video_ms": 27075,
+        "last_audio_ms": 27126,
+        "video_age_ms": 13,
+        "audio_age_ms": 4,
+        "video": "1920x1080",
+        "fps": 60.0,
+        "audio": true,
+        "clients": 0,
+        "requested_resolution": "1080p",
+        "active_resolution": "1080p",
+        "settings_revision": 5,
+        "capture_revision": 5,
+        "stream_revision": 5,
+        "applying": false,
+        "resolutions": [
+          "4k",
+          "1440p",
+          "1080p",
+          "720p"
+        ]
+      },
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "nb_read_frames": "358"
+          },
+          {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2,
+            "nb_read_frames": "281"
+          }
+        ],
+        "format": {
+          "duration": "6.038000"
+        }
+      },
+      "wall_fps": 59.40192689703709,
+      "measured_fps": 59.44055944055944,
+      "monotonic_dts": true,
+      "decode_errors": ""
+    }
+  },
+  "current_status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 3451,
+    "audio_frames": 2720,
+    "last_video_ms": 60365,
+    "last_audio_ms": 60395,
+    "video_age_ms": 2,
+    "audio_age_ms": 9,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 2,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 3,
+    "capture_revision": 3,
+    "stream_revision": 3,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  },
+  "tested_elf_sha256": "4ce42a94787b199f88ff471b7bc815c0269db007e3788256e086ffbe6c2ff808",
+  "explicit60_browser": "Dashboard applied capture resolution; fullscreen player resumed: {\n  mode: '4k',\n  width: 3840,\n  height: 2160,\n  frames: 11,\n  audioBytes: 6144,\n  time: 0.111099,\n  muted: false,\n  fps: 59.78073864600825,\n  audioProgress: 80214,\n  wallFps: 59.78087012127614\n}\nDashboard applied capture resolution; fullscreen player resumed: {\n  mode: '1080p',\n  width: 1920,\n  height: 1080,\n  frames: 4,\n  audioBytes: 4336,\n  time: 0.017209,\n  muted: false,\n  fps: 59.384191928108734,\n  audioProgress: 79731,\n  wallFps: 59.384560014962446\n}\nAutoplay without a gesture, viewport coverage, audio, dashboard controls and reconnect passed.\n",
+  "cleanup_diagnostic": {
+    "startup_pid": 212,
+    "log": "PS5 HDMI Stream bc5ff35-dirty: PID 212 HTTP 8081\nhttp: listening on :8081\navcap: Initialize -> 0x0\navcap: GetVideoOutMode -> 0x0 mode=0x13c\navcap: ResourceArbitrator 0xb4 RUNNING\navcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0\navcap: NonVcl headers -> 0x0 (41 bytes)\navcap: Start -> 0x0\naudio: OpenAudio -> 0x0 handle=0x8004bd640\naudio: Start -> 0x0\naudio: AAC Initialize -> 0x0\naudio: AAC Create -> 0x0 detail=0x0\nmain: video clock pts=70420821887 dts=70420805204 us monotonic_ms=70419250\nmain: PCM clock pts=70420862175 us monotonic_ms=70419269\nmain: PCM clock pts=70420883508 us monotonic_ms=70419284\nmain: PCM clock pts=70420904841 us monotonic_ms=70419306\navcap: Stop -> 0x0\navcap: Close -> 0x0\navcap: ResourceArbitrator 0xb4 STOP -> 0x0\navcap: GetVideoOutMode -> 0x0 mode=0x13c\navcap: ResourceArbitrator 0xb6 RUNNING\navcap: OpenVideo 2560x1440@60 16000 kbps mode=0x13c -> 0x0\navcap: NonVcl headers -> 0x0 (40 bytes)\navcap: Start -> 0x81950008\navcap: Close after open failure -> 0x0\navcap: ResourceArbitrator 0xb6 STOP -> 0x0\nmain: capture unavailable (0x81950008); retrying in 5s\navcap: GetVideoOutMode -> 0x0 mode=0x13c\navcap: ResourceArbitrator 0xb4 RUNNING\navcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0\navcap: NonVcl headers -> 0x0 (41 bytes)\navcap: Start -> 0x0\naudio: OpenAudio -> 0x0 handle=0x8004bd640\naudio: Start -> 0x0\naudio: AAC Initialize -> 0x0\naudio: AAC Create -> 0x0 detail=0x0\nmain: video clock pts=70428827325 dts=70428810641 us monotonic_ms=70427255\nmain: PCM clock pts=70428863458 us monotonic_ms=70427270\nmain: PCM clock pts=70428884791 us monotonic_ms=70427290\nmain: PCM clock pts=70428906125 us monotonic_ms=70427312\n",
+    "interpretation": "Close returns0 after failed1440p Start, so this client releases its reference. Static last-reference cleanup destroys the device; persistence suggests another owning client. Native memory not directly inspected.",
+    "next_step": "Fresh console session requested to clear retained client state before identical explicit60 test."
+  },
+  "outcome": "Resolved after fresh console session: both high modes pass explicit cadence1 with RA182; see high-resolution-60fps-modes.json for final evidence. Earlier entries are historical investigation results."
+}

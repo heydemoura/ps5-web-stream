@@ -12,7 +12,7 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
     ...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {})});
   const base = new URL(process.env.PS5HS_TEST_URL || 'http://127.0.0.1:18080/').origin;
   const modes = process.env.PS5HS_TEST_MODES === 'none' ? [] :
-    (process.env.PS5HS_TEST_MODES || '720p,1440p,4k,1080p').split(',');
+    (process.env.PS5HS_TEST_MODES || '4k,1440p,720p,1080p').split(',');
   const errors = [], requests = [], results = [];
   const context = await browser.newContext({viewport:{width:1366,height:768}});
   context.on('page', page => {
@@ -60,7 +60,17 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
         frames:v.getVideoPlaybackQuality().totalVideoFrames, audioBytes:v.webkitAudioDecodedByteCount,
         time:v.currentTime, muted:v.muted}));
       await player.waitForFunction(time => document.getElementById('v').currentTime > time + 1, sample.time);
-      results.push({mode, ...sample});
+      const cadence = await player.locator('#v').evaluate(async v => {
+        const first = {frames:v.getVideoPlaybackQuality().totalVideoFrames, time:v.currentTime,
+          audio:v.webkitAudioDecodedByteCount, wall:performance.now()};
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        return {fps:(v.getVideoPlaybackQuality().totalVideoFrames-first.frames)/(v.currentTime-first.time),
+          audioProgress:v.webkitAudioDecodedByteCount-first.audio,
+          wallFps:(v.getVideoPlaybackQuality().totalVideoFrames-first.frames)*1000/(performance.now()-first.wall)};
+      });
+      assert(cadence.fps >= 55 && cadence.fps <= 65 && cadence.wallFps >= 55 && cadence.wallFps <= 65, JSON.stringify({mode, cadence}));
+      assert(cadence.audioProgress > 0, 'Audio must continue across each resolution switch');
+      results.push({mode, ...sample, ...cadence});
       console.log('Dashboard applied capture resolution; fullscreen player resumed:', results.at(-1));
     }
     await player.locator('#reload').click();

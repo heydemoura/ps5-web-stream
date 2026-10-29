@@ -15,8 +15,8 @@ import urllib.request
 base = sys.argv[1].rstrip("/")
 out = Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
-modes = {"720p": (1280, 720), "1080p": (1920, 1080),
-         "1440p": (2560, 1440), "4k": (3840, 2160)}
+modes = {"4k": (3840, 2160), "1440p": (2560, 1440),
+         "720p": (1280, 720), "1080p": (1920, 1080)}
 
 
 def status():
@@ -56,9 +56,17 @@ try:
     for mode, dimensions in modes.items():
         try:
             before = select(mode)
+            # Packet timestamps alone can lie about delivery cadence: native auto
+            # mode has produced 30 frames/wall-second with nominal 60fps DTS.
+            sample_start = time.monotonic()
+            sample_before = status()
+            time.sleep(5)
+            sample_after = status()
+            wall_fps = (sample_after['video_frames'] - sample_before['video_frames']) / (time.monotonic() - sample_start)
+            assert sample_after['active_resolution'] == mode and 58 <= wall_fps <= 61, (mode, wall_fps)
             media = out / (mode + ".flv")
             subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y",
-                "-rw_timeout", "10000000", "-i", base + "/live.flv", "-t", "3",
+                "-rw_timeout", "10000000", "-i", base + "/live.flv", "-t", "6",
                 "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", str(media)],
                 check=True, timeout=25)
             probe = json.loads(subprocess.check_output(["ffprobe", "-v", "error",
@@ -67,22 +75,25 @@ try:
                 "-of", "json", str(media)], timeout=20))
             video, audio = probe["streams"]
             assert (video["width"], video["height"]) == dimensions, probe
-            assert video["codec_name"] == "h264" and int(video["nb_read_frames"]) > 30, probe
+            assert video["codec_name"] == "h264" and int(video["nb_read_frames"]) > 340, probe
             assert audio["codec_name"] == "aac" and audio["channels"] == 2, probe
             assert int(audio.get("nb_read_frames", 0)) > 50, probe
             packets = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_packets",
-                "-show_entries", "packet=stream_index,dts", "-of", "json", str(media)],
+                "-show_entries", "packet=stream_index,dts_time", "-of", "json", str(media)],
                 timeout=20))["packets"]
             for track in (0, 1):
-                times = [packet["dts"] for packet in packets if packet["stream_index"] == track]
+                times = [float(packet["dts_time"]) for packet in packets if packet["stream_index"] == track]
                 assert all(a < b for a, b in zip(times, times[1:])), (mode, track, times)
+            video_times = [float(p["dts_time"]) for p in packets if p["stream_index"] == 0]
+            measured_fps = (len(video_times) - 1) / (video_times[-1] - video_times[0])
+            assert 58 <= measured_fps <= 61, (mode, measured_fps)
             decoded = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(media),
                 "-map", "0:v:0", "-map", "0:a:0", "-enc_time_base:v", "1:1000",
                 "-fps_mode", "passthrough", "-f", "null", "-"],
                 capture_output=True, text=True, timeout=30)
             assert decoded.returncode == 0 and not decoded.stderr, decoded.stderr
             results[mode] = {"passed": True, "status": before, "media": probe,
-                             "monotonic_dts": True, "decode_errors": ""}
+                             "wall_fps": wall_fps, "measured_fps": measured_fps, "monotonic_dts": True, "decode_errors": ""}
         except (AssertionError, OSError, subprocess.SubprocessError) as error:
             results[mode] = {"passed": False, "error": str(error)}
         print(mode, json.dumps(results[mode]), flush=True)

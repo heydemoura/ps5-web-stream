@@ -11,7 +11,35 @@ desktop/mobile viewport coverage, Unmute, reconnect and Stop. These results
 distinguish native decoded dimensions from the size at which a browser
 displays video.
 
-## Current console results
+## Current 60-fps validation
+
+All four presets now request 60 fps. The strict hardware test selects 4K first,
+then 1440p using the same explicit cadence selector 1 and RA 182 allocation.
+It measures frames delivered over five wall-clock seconds, captures six seconds
+of media, checks native dimensions and monotonic DTS, and fully decodes both
+H.264 video and stereo AAC. Timestamp metadata alone is not accepted as 60 fps proof.
+
+See [current mode results](evidence/high-resolution-60fps-modes.json) and
+[build/runtime identity](evidence/high-resolution-60fps-build.json).
+The previous failed 1440p device cleared after a console restart; no alternate
+1440p capture path was needed. Fixed 59.94/60-Hz SDR output was tested.
+
+| Mode | Delivered frames / wall-clock second | Packet cadence | Full decode |
+|---|---:|---:|---|
+| 4K | 59.76 | 59.94 fps | H.264 + stereo AAC passed |
+| 1440p | 59.34 | 59.44 fps | H.264 + stereo AAC passed |
+| 720p | 59.32 | 59.44 fps | H.264 + stereo AAC passed |
+| 1080p | 59.43 | 59.44 fps | H.264 + stereo AAC passed |
+
+The [Chrome run](evidence/high-resolution-60fps-browser.log) independently
+measured 59.99 fps at 4K and 59.58 fps at 1440p during dashboard-driven switches,
+with audio advancing in each mode. All four modes, autoplay, viewport coverage,
+reconnect and Stop passed. The console returned to healthy 1080p capture.
+The [host suite](evidence/high-resolution-60fps-host.log) passed with ASan/UBSan;
+the SDK build passed. [Runtime log](evidence/high-resolution-60fps-runtime.log)
+records native Start, Stop and Close results.
+
+## Historical web-only validation (high modes at 30 fps)
 
 The web-only payload was tested at `http://192.168.0.190:8081`; its build default
 is `8080`. The resolution test selects each mode through `/settings`, waits for
@@ -39,7 +67,7 @@ port 1936 was closed. The snapshot also retains sample hashes and non-silent
 Both tracks have strictly increasing decode timestamps in each sample. All
 samples passed a full FFmpeg decode. Higher modes use ResourceArbitrator 182
 and a matching per-client audio device; 1440p and 4K use the verified 30-fps
-configuration. Higher-resolution 60-fps capture is not validated.
+configuration. These historical results predate the 60 fps validation above.
 
 The [mode results](evidence/web-only-console-modes.json) retain status, decoded
 dimensions, frame counts and decode checks. Captured console media remains
@@ -171,8 +199,8 @@ another capture owner.
 
 ## Limits
 
-- **The higher modes use 30 fps.** The verified 1440p and 4K presets do not
-   establish 60-fps operation at those resolutions.
+- **Output coverage is bounded.** All four modes passed nominal 60 fps at fixed
+   59.94/60-Hz SDR output. HDR, VRR and 120-Hz output remain untested.
 - **Compatibility and performance remain bounded.** Cold-boot operation, other
    firmware versions, HDR and multi-hour operation are untested. Native open
    negotiates the capture tap; no separate scan-in setup is needed. Mode
