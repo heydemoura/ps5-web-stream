@@ -3,6 +3,12 @@ name: Build release payload
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build and upload
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,6 +19,8 @@ jobs:
     steps:
       - name: Check out release tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - name: Install build tools
         run: |
@@ -30,7 +38,7 @@ jobs:
       - name: Build payload
         env:
           PS5_PAYLOAD_SDK: ${{ runner.temp }}/ps5-payload-sdk
-          LLVM_CONFIG: llvm-config-18
+          LLVM_CONFIG: /usr/bin/llvm-config-18
         run: make HTTP_PORT=8080
 
       - name: Create checksum
@@ -40,5 +48,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: gh release upload "$RELEASE_TAG" ps5-web-stream.elf ps5-web-stream.elf.sha256 --clobber
