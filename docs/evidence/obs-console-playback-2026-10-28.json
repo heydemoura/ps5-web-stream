@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-28",
+  "source": "rtmp://192.168.0.190:1936/live/stream",
+  "scope": "Real PS5 video and audio received by actual OBS Media Source; not synthetic",
+  "obs_version": "32.0.4",
+  "isolation": {
+    "method": "CFFIXED_USER_HOME plus sandbox deny file-write* under /Users/heyde",
+    "fresh_profile": "PS5HS Verification",
+    "camera_microphone_desktop_inputs": false,
+    "original_config_files_compared": 167,
+    "original_config_unchanged": true,
+    "graceful_exit_code": 0
+  },
+  "media_state": "OBS_MEDIA_STATE_PLAYING",
+  "source_width": 1920,
+  "source_height": 1080,
+  "media_cursor_before_ms": 463213,
+  "media_cursor_after_ms": 475224,
+  "input_audio_meter_events": 272,
+  "input_audio_peak_max": 0.044640347361564636,
+  "recording": {
+    "duration_seconds": 12.044,
+    "video_codec": "h264",
+    "video_width": 1920,
+    "video_height": 1080,
+    "video_frames": 360,
+    "audio_codec": "aac",
+    "audio_sample_rate": 48000,
+    "audio_channels": 2,
+    "audio_frames": 562,
+    "ffmpeg_decode_exit_code": 0,
+    "ffmpeg_error_log_bytes": 0,
+    "sha256": "8ae0e60805f4120ed8ea52173e8b79ec35651a495bcaf70ed20b50416e59d747"
+  },
+  "capture_artifacts": "Recording and source screenshot retained privately in /private/tmp/ps5hs-obs-run-bsgdezke, not committed",
+  "source_screenshot_observation": "1920x1080 PS5 Media home screen with Payload Manager tile visible",
+  "limits": "OBS recording is re-encoded by OBS at 30 fps. It proves received media decoding/routing, not native input-frame-rate preservation or glass-to-glass latency."
+}

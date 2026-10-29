@@ -1,247 +1,285 @@
 /* Copyright (C) 2026 heydemoura */
 #include "avcap.h"
 #include "scanin.h"
-#include "share.h"
 #include "log.h"
-
 #include <dlfcn.h>
-#include <stdlib.h>
+#include <limits.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <unistd.h>
 
-/* ---- parameter-block layout (relative to the params pointer) -------------
- * These offsets were taken from SceShellCore's video-open routine. The video
- * object we allocate is [ u64 handle ][ params... ]; params = object + 8.
- * See docs/AVCAP2.md for the full derivation.                               */
-#define P_RESCODE   0x18   /* resolution class code   */
-#define P_RESSUB    0x1c
-#define P_FLAGA     0x20
-#define P_FLAGB     0x24
-#define P_FPS       0x94
-#define P_BITRATE   0xc8
-#define P_CS0       0x2a0
-#define P_CS1       0x2a4   /* colour space            */
-#define P_CS2       0x2b4
-#define P_CS3       0x2b5
-#define P_MEMMODE   0x1a0   /* 0 => library allocates encoder memory itself */
+#define AVCAP_INVALID ((int)0x81950001)
+#define AVCAP_EMPTY ((int)0x81950002)
+#define AVCAP_OVERRUN ((int)0x81950004)
 
-#define VOBJ_SIZE   0x400
-#define AOBJ_SIZE   0x400
+static void *g_lib, *g_ipmi, *g_video;
+static int g_initialized, g_err, g_use_scanin;
+static int (*p_Initialize)(void), (*p_Terminate)(void);
+static int (*p_OpenVideo)(void **, void *, int);
+static int (*p_Start)(void *), (*p_Stop)(void *), (*p_Close)(void *);
+static int (*p_ReadVideo)(void *, void *, uint64_t, void *, int);
+static int (*p_GetVideoOutMode)(int *);
+static int (*p_GetHeaders)(void *, void *);
+static int (*p_RequestKeyFrame)(void *);
+static void *g_ra_lib;
+static int (*p_RaSet)(int, void (*)(int,int,void *), void *);
+static int (*p_RaCheck)(int, const char *);
+static int (*p_RaState)(int, const char *, void *, int);
+static int (*p_RaClear)(int);
+static int g_ra_registered, g_ra_owned;
+static atomic_int g_ra_event;
+static uint8_t g_headers[264];
+static size_t g_headers_len;
+static uint64_t g_keyframe_clock_us;
+static int g_have_keyframe_clock;
+#define KEYFRAME_INTERVAL_US UINT64_C(2000000)
+#define VIDEO_RESOURCE 0xb4
 
-/* Return codes observed from the service. */
-#define AVCAP_EAGAIN 0x81950001
-
-/* ---- resolved entry points ---------------------------------------------- */
-static void *g_lib;
-static int (*p_Initialize)(void);
-static int (*p_Terminate)(void);
-static int (*p_OpenVideo)(void *handle_out, void *params, int flag);
-static int (*p_OpenAudio)(void *handle_out, void *params, int flag);
-static int (*p_Start)(void *handle);
-static int (*p_Stop)(void *handle);
-static int (*p_Close)(void *handle);
-static int (*p_ReadVideo)(void *handle, void *buf, uint64_t size, void *info, int flag);
-static int (*p_ReadAudio)(void *handle, void *buf, uint64_t size, void *info, int flag);
-static int (*p_GetVideoOutMode)(int *out);
-
-static void *g_vobj, *g_aobj;
-static int   g_err;
-static int   g_use_scanin;     /* opt-in: enable the scan-in capture tap */
-
-int avcap_last_error(void) { return g_err; }
-void avcap_set_scanin(int on) { g_use_scanin = on; }
-
-static void *RES(const char *n) {
-  void *f = dlsym(g_lib, n);
-  if (!f) LOG("avcap: dlsym(%s) failed: %s", n, dlerror());
-  return f;
+static void resource_callback(int id, int event, void *info) {
+  if (id == VIDEO_RESOURCE && event == 1 && info)
+    atomic_store(&g_ra_event, *(const uint8_t *)info ? 1 : -1);
 }
-
-int
-avcap_load(void) {
-  if (g_lib) return 0;
-  const char *paths[] = {
-    "libSceAvcap2.sprx",
-    "/system/common/lib/libSceAvcap2.sprx",
-    NULL
-  };
-  for (int i = 0; paths[i]; i++) {
-    g_lib = dlopen(paths[i], RTLD_LAZY | RTLD_GLOBAL);
-    if (g_lib) { LOG("avcap: loaded %s (%p)", paths[i], g_lib); break; }
-    LOG("avcap: dlopen(%s): %s", paths[i], dlerror());
+static int resource_wait(void) {
+  for (unsigned i=0; i<200; ++i) {
+    int event = atomic_load(&g_ra_event);
+    if (event) return event > 0 ? 0 : (int)0x81950008;
+    usleep(5000);
   }
-  if (!g_lib) return -1;
-
-  p_Initialize      = RES("sceAvcap2Initialize");
-  p_Terminate       = RES("sceAvcap2Terminate");
-  p_OpenVideo       = RES("sceAvcap2OpenVideo");
-  p_OpenAudio       = RES("sceAvcap2OpenAudio");
-  p_Start           = RES("sceAvcap2Start");
-  p_Stop            = RES("sceAvcap2Stop");
-  p_Close           = RES("sceAvcap2Close");
-  p_ReadVideo       = RES("sceAvcap2ReadVideo");
-  p_ReadAudio       = RES("sceAvcap2ReadAudio");
-  p_GetVideoOutMode = RES("sceAvcap2GetVideoOutMode");
-
-  if (!p_Initialize || !p_OpenVideo || !p_Start || !p_ReadVideo) {
-    LOG("avcap: required symbols missing");
-    return -1;
+  return (int)0x81950008;
+}
+static void resource_release(void) {
+  if (g_ra_owned) {
+    atomic_store(&g_ra_event, 0);
+    int r = p_RaState(VIDEO_RESOURCE, "STOP", NULL, getpid());
+    if (r >= 0) r = resource_wait();
+    LOG("avcap: ResourceArbitrator STOP -> 0x%x", r);
+    g_ra_owned = 0;
   }
+  if (g_ra_registered) { p_RaClear(VIDEO_RESOURCE); g_ra_registered = 0; }
+}
+static int resource_acquire(void) {
+  if (!g_ra_lib) {
+    g_ra_lib = dlopen("libSceResourceArbitrator.sprx", RTLD_NOW | RTLD_GLOBAL);
+    if (!g_ra_lib) return -1;
+    p_RaSet = dlsym(g_ra_lib, "sceResourceArbitratorSetCallback");
+    p_RaCheck = dlsym(g_ra_lib, "sceResourceArbitratorIsExecutable");
+    p_RaState = dlsym(g_ra_lib, "sceResourceArbitratorChangeState");
+    p_RaClear = dlsym(g_ra_lib, "sceResourceArbitratorClearCallback");
+  }
+  if (!p_RaSet || !p_RaCheck || !p_RaState || !p_RaClear) return -1;
+  int r = p_RaSet(VIDEO_RESOURCE, resource_callback, NULL);
+  if (r < 0) return r;
+  g_ra_registered = 1;
+  r = p_RaCheck(VIDEO_RESOURCE, "RUNNING");
+  if (r <= 0) { resource_release(); return r < 0 ? r : (int)0x81950008; }
+  if (r != 2) {
+    atomic_store(&g_ra_event, 0);
+    r = p_RaState(VIDEO_RESOURCE, "RUNNING", NULL, getpid());
+    if (r < 0) { resource_release(); return r; }
+    g_ra_owned = 1;
+    r = resource_wait();
+    if (r < 0) { resource_release(); return r; }
+  }
+  LOG("avcap: ResourceArbitrator 0xb4 RUNNING");
   return 0;
 }
 
-int
-avcap_init(void) {
-  if (p_GetVideoOutMode) {
-    int mode = -1;
-    int r = p_GetVideoOutMode(&mode);
-    LOG("avcap: GetVideoOutMode -> r=0x%x mode=%d", r, mode);
+int avcap_last_error(void) { return g_err; }
+void avcap_set_scanin(int on) { g_use_scanin = !!on; }
+
+static void *resolve(const char *name) {
+  void *p = dlsym(g_lib, name);
+  if (!p) LOG("avcap: missing %s: %s", name, dlerror());
+  return p;
+}
+
+int avcap_load(void) {
+  if (g_lib) return 0;
+  /* Avcap2 imports Ipmi; load its dependency before resolving the wrapper. */
+  g_ipmi = dlopen("libSceIpmi.sprx", RTLD_NOW | RTLD_GLOBAL);
+  if (!g_ipmi) { LOG("avcap: Ipmi load failed: %s", dlerror()); return g_err = -1; }
+  g_lib = dlopen("libSceAvcap2.sprx", RTLD_NOW | RTLD_GLOBAL);
+  if (!g_lib) { LOG("avcap: load failed: %s", dlerror()); return g_err = -1; }
+  p_Initialize = resolve("sceAvcap2Initialize");
+  p_Terminate = resolve("sceAvcap2Terminate");
+  p_OpenVideo = resolve("sceAvcap2OpenVideo");
+  p_Start = resolve("sceAvcap2Start");
+  p_Stop = resolve("sceAvcap2Stop");
+  p_Close = resolve("sceAvcap2Close");
+  p_ReadVideo = resolve("sceAvcap2ReadVideo");
+  p_GetVideoOutMode = resolve("sceAvcap2GetVideoOutMode");
+  p_GetHeaders = resolve("sceAvcap2GetNonVclNalUnitStream");
+  p_RequestKeyFrame = resolve("sceAvcap2RequestKeyFrame");
+  if (!p_Initialize || !p_Terminate || !p_OpenVideo || !p_Start ||
+      !p_Stop || !p_Close || !p_ReadVideo || !p_GetVideoOutMode || !p_GetHeaders ||
+      !p_RequestKeyFrame) {
+    dlclose(g_lib); g_lib = NULL; return g_err = -1;
   }
+  return g_err = 0;
+}
+
+int avcap_init(void) {
+  if (g_initialized) return 0;
+  if (!g_lib && avcap_load() < 0) return g_err;
   int r = p_Initialize();
   LOG("avcap: Initialize -> 0x%x", r);
+  if (r >= 0) g_initialized = 1;
   g_err = r;
   return r < 0 ? r : 0;
 }
 
-static void set32(uint8_t *base, int off, uint32_t v) { *(uint32_t *)(base + off) = v; }
-static void set8 (uint8_t *base, int off, uint8_t  v) { *(uint8_t  *)(base + off) = v; }
+static void set32(uint8_t *p, size_t off, uint32_t value) {
+  memcpy(p + off, &value, sizeof(value));
+}
 
-/* Resolution/rate parameter sets, taken from SceShellCore's video-open tables
- * (rescode, ressub) per output mode, each tried at 60 and 30 fps. We cannot
- * query the current mode before opening (that path needs the very context an
- * open creates), so we sweep until the AV-control daemon stops replying with
- * the mode-mismatch code 0x81950008. Every attempt is read-only. */
-static const struct { int rescode, ressub; } k_modes[] = {
-  {4, 1}, {4, 0}, {3, 0}, {6, 1}, {3, 1},
-};
-static const int k_fps[] = { 60, 30 };
+/* Full versioned record from RemoteplayDaemon 0x57770. These sizes are
+ * mandatory. Output mode is queried after Initialize. The source resource
+ * must be RUNNING before OpenVideo; see docs/AVCAP2.md for runtime evidence. */
+static void video_params(uint8_t p[0x2e0], const avcap_config *cfg, int mode,
+                         unsigned resolution) {
+  static const unsigned sizes[][2] = {
+    {0,0x2e0},{8,0x28},{0x30,0x58},{0x38,0x18},{0x50,0x10},
+    {0x60,0x18},{0x88,0x30},{0xb8,0xe0},{0xc0,0x20},{0xe0,0x20},
+    {0x100,0x20},{0x120,0x18},{0x188,0x10},{0x198,0x50},
+    {0x1e8,0xf8},{0x1f0,0x28},{0x218,0x88},{0x2a8,0x10},{0x2b8,0x10}
+  };
+  memset(p, 0, 0x2e0);
+  for (size_t i=0; i<sizeof(sizes)/sizeof(sizes[0]); ++i)
+    set32(p, sizes[i][0], sizes[i][1]);
+  set32(p, 0x14, 2); /* Remote Play source */
+  set32(p, 0x18, resolution);
+  set32(p, 0x1c, cfg->fps == 60);
+  set32(p, 0x24, 0); /* AVC */
+  set32(p, 0x28, VIDEO_RESOURCE); /* active ResourceArbitrator ID */
+  set32(p, 0x40, 1); set32(p, 0x44, 245760u/(unsigned)cfg->fps/60u);
+  set32(p, 0x48, 1); set32(p, 0x4c, 1400*8);
+  set32(p, 0x58, 1); set32(p, 0x5c, 9); set32(p, 0x68, 1);
+  uint32_t bps = (uint32_t)cfg->bitrate * 1000u;
+  set32(p, 0xc8, (uint32_t)((float)bps/1.12f)); set32(p, 0xcc, bps);
+  uint32_t frame_bits = (uint32_t)((uint64_t)bps*1001u/((unsigned)cfg->fps*1000u));
+  set32(p, 0xd0, frame_bits); set32(p, 0xd4, 35);
+  set32(p, 0xd8, 0x33);
+  set32(p, 0x108, 1); set32(p, 0x10c, frame_bits/8); set32(p, 0x128, 1); set32(p, 0x12c, 25);
+  memset(p+0x220, 0xff, 0x80);
+  set32(p, 0x2a0, (uint32_t)mode);
+  set32(p, 0x2a4, (mode&1) ? 5 : (mode&2) ? 7 : 2);
+  set32(p, 0x2b0, 1); p[0x2b4] = 1; p[0x2b5] = 1;
+  p[0x2c0] = 1; set32(p, 0x2c4, 110);
+}
 
-#define AVCAP_EMODE ((int)0x81950008)
-
-int
-avcap_open(const avcap_config *cfg) {
-  g_vobj = aligned_alloc(16, VOBJ_SIZE);
-  if (!g_vobj) return -1;
-
-  uint8_t *params = (uint8_t *)g_vobj + 8;
-  int r = AVCAP_EMODE;
-
-  /* If opted in, enable the capture tap on the AV-control daemon first; a
-   * read tap of the current signal, not an output-mode change. */
+int avcap_open(const avcap_config *cfg) {
+  static const struct { int w,h; unsigned code; } resolutions[] = {
+    {640,360,1},{960,540,2},{1280,720,3},{1920,1080,4},
+    {2560,1440,5},{3840,2160,6}
+  };
+  if (!cfg || !g_initialized || g_video ||
+      (cfg->fps != 30 && cfg->fps != 60) || cfg->bitrate <= 0 ||
+      (unsigned)cfg->bitrate > UINT32_MAX/1000u) return g_err = AVCAP_INVALID;
+  unsigned resolution = 0;
+  for (size_t i=0; i<sizeof(resolutions)/sizeof(resolutions[0]); ++i)
+    if (cfg->width == resolutions[i].w && cfg->height == resolutions[i].h)
+      resolution = resolutions[i].code;
+  if (!resolution) return g_err = AVCAP_INVALID;
+  int mode = -1;
+  int r = p_GetVideoOutMode(&mode);
+  LOG("avcap: GetVideoOutMode -> 0x%x mode=0x%x", r, mode);
+  if (r < 0) return g_err = r;
   if (g_use_scanin) {
-    int sr = scanin_enable(11 /* 1920x1080 */);
-    LOG("avcap: scanin_enable -> 0x%x", sr);
+    r = scanin_enable(11);
+    LOG("avcap: scanin_enable -> 0x%x", r);
+    if (r < 0) return g_err = r;
   }
-
-  /* Permit the Share capture/broadcast feature(s); libSceAvcap2's open path
-   * checks this per-process permit. Sweep ids once to find the right one. */
-  share_permit_sweep(0, 40);
-
-  for (size_t mi = 0; mi < sizeof(k_modes)/sizeof(k_modes[0]); mi++) {
-    for (size_t fi = 0; fi < sizeof(k_fps)/sizeof(k_fps[0]); fi++) {
-      memset(g_vobj, 0, VOBJ_SIZE);
-      set32(params, P_RESCODE, k_modes[mi].rescode);
-      set32(params, P_RESSUB,  k_modes[mi].ressub);
-      set32(params, P_FLAGA,   0);
-      set32(params, P_FLAGB,   2);
-      set32(params, P_FPS,     (uint32_t)k_fps[fi]);
-      set32(params, P_BITRATE, (uint32_t)cfg->bitrate);
-      set32(params, P_CS0,     0);
-      set32(params, P_CS1,     1);
-      set8 (params, P_CS2,     1);
-      set8 (params, P_CS3,     1);
-      set32(params, P_MEMMODE, 0);
-
-      r = p_OpenVideo(g_vobj, params, 0);
-      LOG("avcap: OpenVideo rescode=%d/%d fps=%d -> 0x%x (handle=%p)",
-          k_modes[mi].rescode, k_modes[mi].ressub, k_fps[fi], r, *(void **)g_vobj);
-      g_err = r;
-      if (r >= 0) { mi = 999; break; }       /* success */
-      if (r != AVCAP_EMODE) { mi = 999; break; } /* a different error: stop */
+  r = resource_acquire();
+  if (r < 0) return g_err = r;
+  uint8_t params[0x2e0];
+  video_params(params, cfg, mode, resolution);
+  void *handle = NULL;
+  r = p_OpenVideo(&handle, params, 0);
+  LOG("avcap: OpenVideo %dx%d@%d %d kbps mode=0x%x -> 0x%x", cfg->width,
+      cfg->height, cfg->fps, cfg->bitrate, mode, r);
+  if (r < 0) { resource_release(); return g_err = r; }
+  if (!handle) { resource_release(); return g_err = -1; }
+  uint8_t headers[0x1a8] = {0};
+  set32(headers, 0, sizeof(headers));
+  r = p_GetHeaders(handle, headers);
+  g_headers_len = 0;
+  if (r >= 0) {
+    const size_t offsets[] = {0x10, 0x98};
+    for (unsigned i=0; i<2; ++i) {
+      uint64_t len;
+      memcpy(&len, headers+offsets[i], sizeof(len));
+      if (!len || len > 128 || (headers[offsets[i]+8]&31) != 7+i) {
+        r = AVCAP_INVALID; break;
+      }
+      memcpy(g_headers+g_headers_len, "\0\0\0\1", 4);
+      g_headers_len += 4;
+      memcpy(g_headers+g_headers_len, headers+offsets[i]+8, (size_t)len);
+      g_headers_len += (size_t)len;
     }
   }
-  if (r < 0) { free(g_vobj); g_vobj = NULL; return r; }
-
-  r = p_Start(*(void **)g_vobj);
+  LOG("avcap: NonVcl headers -> 0x%x (%zu bytes)", r, g_headers_len);
+  if (r < 0) { p_Close(handle); resource_release(); g_headers_len=0; return g_err=r; }
+  r = p_Start(handle);
   LOG("avcap: Start -> 0x%x", r);
-  g_err = r;
-  if (r < 0) { p_Close(*(void **)g_vobj); free(g_vobj); g_vobj = NULL; return r; }
+  if (r < 0) { p_Close(handle); resource_release(); return g_err = r; }
+  g_video = handle;
+  return g_err = 0;
+}
 
-  if (cfg->have_audio && p_OpenAudio) {
-    g_aobj = aligned_alloc(16, AOBJ_SIZE);
-    if (g_aobj) {
-      memset(g_aobj, 0, AOBJ_SIZE);
-      uint8_t *ap = (uint8_t *)g_aobj + 8;
-      /* audio params: mode 1, two 0x10-byte planes, sample rate hint */
-      set32(ap, 0x18, 1);
-      set32(ap, 0x20, 0x10);
-      set32(ap, 0x30, 48);
-      int ar = p_OpenAudio(g_aobj, ap, 0);
-      LOG("avcap: OpenAudio -> 0x%x (handle=%p)", ar, *(void **)g_aobj);
-      if (ar < 0) { free(g_aobj); g_aobj = NULL; }
-    }
-  }
+static uint64_t ticks_to_us(uint64_t ticks) {
+  /* Avcap service uses the 240 kHz media clock; audio verified by sample count. */
+  return (ticks/240000u)*1000000u + (ticks%240000u)*1000000u/240000u;
+}
+static int has_idr(const uint8_t *p, size_t n) {
+  for (size_t i=0; i+3<n; ++i)
+    if (p[i]==0 && p[i+1]==0 && p[i+2]==1 && (p[i+3]&31)==5) return 1;
   return 0;
 }
 
-/* The info block the service fills. Only a few fields are known; it is sized
- * generously (the library writes up to 0x60 bytes). */
-typedef struct {
-  uint8_t raw[0x80];
-} avcap_info;
-
-int
-avcap_read_video(uint8_t *buf, size_t bufsize, avcap_frame *fr) {
-  if (!g_vobj) return -1;
-  avcap_info info;
-  memset(&info, 0, sizeof(info));
-  void *handle = *(void **)g_vobj;
-
-  int r = p_ReadVideo(handle, buf, bufsize, &info, 0);
-  if (r == (int)AVCAP_EAGAIN) return 0;
-  if (r <= 0) { g_err = r; return r < 0 ? r : 0; }
-
-  uint64_t pts = *(uint64_t *)(info.raw + 0x08);
-  uint64_t dts = *(uint64_t *)(info.raw + 0x10);
-  uint32_t ftype = *(uint32_t *)(info.raw + 0x1c);
-
-  fr->len = (size_t)r;
-  fr->pts_ms = (uint32_t)(pts / 1000);   /* service reports microseconds */
-  fr->dts_ms = (uint32_t)(dts / 1000);
-  fr->keyframe = (ftype == 1);
+int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
+  if (!g_video || !buf || !size || !fr) return g_err = AVCAP_INVALID;
+  uint8_t info[0x80] = {0};
+  int r = p_ReadVideo(g_video, buf, size, info, 1); /* nonblocking */
+  if (r == 0 || r == AVCAP_EMPTY || r == AVCAP_OVERRUN) return 0;
+  if (r < 0) return g_err = r;
+  if ((size_t)r > size) return g_err = AVCAP_INVALID;
+  uint64_t pts, dts;
+  memcpy(&pts, info+8, 8); memcpy(&dts, info+0x10, 8);
+  fr->len = (size_t)r; fr->pts_us = ticks_to_us(pts); fr->dts_us = ticks_to_us(dts);
+  fr->keyframe = has_idr(buf, fr->len);
+  /* Remote Play's default encoder configuration emits only an initial IDR.
+   * Request another every two seconds of captured media so new viewers can
+   * start. RequestKeyFrame(handle) is the exported one-argument native API. */
+  if (!g_have_keyframe_clock || fr->keyframe || fr->pts_us < g_keyframe_clock_us) {
+    g_keyframe_clock_us = fr->pts_us;
+    g_have_keyframe_clock = 1;
+  } else if (fr->pts_us-g_keyframe_clock_us >= KEYFRAME_INTERVAL_US) {
+    int kr = p_RequestKeyFrame(g_video);
+    if (kr < 0) {
+      LOG("avcap: RequestKeyFrame -> 0x%x", kr);
+      return g_err = kr;
+    }
+    g_keyframe_clock_us = fr->pts_us;
+  }
+  /* The encoder emits slice NALs only. Repeat native SPS/PPS at each IDR so
+   * the transport can initialize and late viewers can decode independently. */
+  if (fr->keyframe && g_headers_len) {
+    if (size-fr->len < g_headers_len) return g_err = AVCAP_INVALID;
+    memmove(buf+g_headers_len, buf, fr->len);
+    memcpy(buf, g_headers, g_headers_len);
+    fr->len += g_headers_len;
+  }
+  g_err = 0;
   return 1;
 }
 
-int
-avcap_read_audio(uint8_t *buf, size_t bufsize, avcap_frame *fr) {
-  if (!g_aobj || !p_ReadAudio) return -1;
-  avcap_info info;
-  memset(&info, 0, sizeof(info));
-  void *handle = *(void **)g_aobj;
-
-  int r = p_ReadAudio(handle, buf, bufsize, &info, 0);
-  if (r == (int)AVCAP_EAGAIN) return 0;
-  if (r <= 0) { g_err = r; return r < 0 ? r : 0; }
-
-  uint64_t pts = *(uint64_t *)(info.raw + 0x08);
-  fr->len = (size_t)r;
-  fr->pts_ms = (uint32_t)(pts / 1000);
-  fr->dts_ms = fr->pts_ms;
-  fr->keyframe = 0;
-  return 1;
+void avcap_close(void) {
+  if (g_video) { p_Stop(g_video); p_Close(g_video); g_video = NULL; }
+  g_headers_len = 0;
+  g_have_keyframe_clock = 0;
+  resource_release();
 }
-
-void
-avcap_close(void) {
-  if (g_vobj) {
-    void *h = *(void **)g_vobj;
-    if (h) { if (p_Stop) p_Stop(h); if (p_Close) p_Close(h); }
-    free(g_vobj); g_vobj = NULL;
-  }
-  if (g_aobj) {
-    void *h = *(void **)g_aobj;
-    if (h && p_Close) p_Close(h);
-    free(g_aobj); g_aobj = NULL;
-  }
-  if (p_Terminate) p_Terminate();
+void avcap_terminate(void) {
+  avcap_close();
+  if (g_initialized) { p_Terminate(); g_initialized = 0; }
 }

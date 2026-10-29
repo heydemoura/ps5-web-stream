@@ -30,6 +30,8 @@
     padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
   button.ghost{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
   button:active{transform:translateY(1px)}
+  button:disabled{opacity:.45;cursor:default}
+  button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
   .panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
@@ -52,7 +54,7 @@
 <header>
   <span class="dot" id="dot"></span>
   <h1>PS5 HDMI Stream</h1>
-  <span id="state" style="color:var(--muted);font-size:13px">connecting…</span>
+  <span id="state" role="status" aria-live="polite" style="color:var(--muted);font-size:13px">connecting…</span>
 </header>
 
 <div class="wrap">
@@ -64,7 +66,7 @@
   <div class="controls">
     <button id="play">▶ Play preview</button>
     <button id="reload" class="ghost">↻ Reconnect</button>
-    <button id="mute" class="ghost">🔇 Unmute</button>
+    <button id="mute" class="ghost" disabled>🔇 Unmute</button>
   </div>
 
   <div class="grid">
@@ -93,63 +95,199 @@
 
 <footer>Served from the console · <a href="/live.flv">/live.flv</a> · <a href="/status">/status</a> · <a href="/log">/log</a></footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
+<script src="/vendor/flv.min.js"></script>
 <script>
 (function(){
-  var host = location.hostname;
-  var httpPort = location.port || "80";
+  'use strict';
   var v = document.getElementById('v');
   var ov = document.getElementById('ov');
   var dot = document.getElementById('dot');
   var state = document.getElementById('state');
-  var player = null;
-
-  var flvUrl = location.protocol + "//" + host + ":" + httpPort + "/live.flv";
+  var playButton = document.getElementById('play');
+  var muteButton = document.getElementById('mute');
+  var player = null, wanted = false, status = null, timer = null;
+  var previewIssue = null, playBlocked = false;
+  var lastTime = -1, lastProgress = 0, retryAfter = 0, stopped = false;
+  var flvUrl = new URL('/live.flv', location.href).href;
   document.getElementById('flv').textContent = flvUrl;
 
-  function setState(s, cls){ state.textContent = s; dot.className = "dot " + (cls||""); }
-
-  function start(){
-    if (!window.flvjs || !flvjs.isSupported()){
-      ov.textContent = "This browser can't play FLV. Use Chrome, or add the RTMP URL in OBS.";
-      ov.style.display = "flex"; return;
+  function setState(text, cls){
+    state.textContent = text;
+    dot.className = 'dot ' + (cls || '');
+  }
+  function overlay(text){ ov.textContent = text; ov.style.display = 'flex'; }
+  function sourceReady(){
+    return status && status.capture_state === 'streaming' &&
+      status.video_frames > 0 && status.video_age_ms >= 0 && status.video_age_ms < 3000;
+  }
+  function destroyPlayer(){
+    var old = player;
+    player = null;
+    lastTime = -1; lastProgress = 0; playBlocked = false;
+    if (old) { try { old.destroy(); } catch (e) {} }
+  }
+  function captureMessage(){
+    if (!status) return 'Connecting to console…';
+    if (status.capture_state === 'error') {
+      var code = '0x' + (status.error >>> 0).toString(16).padStart(8, '0');
+      return 'Capture unavailable (' + code + '). See the payload log.';
     }
-    stop();
-    player = flvjs.createPlayer(
-      { type:'flv', url:flvUrl, isLive:true, hasAudio:true, hasVideo:true },
-      { enableStashBuffer:false, liveBufferLatencyChasing:true, lazyLoad:false });
-    player.attachMediaElement(v);
-    player.on(flvjs.Events.ERROR, function(a,b){ setState("stream error: "+b, "err"); });
-    player.load();
-    v.play().catch(function(){});
-    ov.style.display = "none";
-    setState("live", "live");
+    if (status.capture_state === 'streaming') return 'Waiting for new video from the console…';
+    return 'Waiting for console capture…';
   }
-  function stop(){ if (player){ try{player.destroy();}catch(e){} player=null; } }
-
-  document.getElementById('play').onclick = start;
-  document.getElementById('reload').onclick = start;
-  document.getElementById('mute').onclick = function(){
-    v.muted = !v.muted; this.textContent = v.muted ? "🔇 Unmute" : "🔊 Mute";
+  function render(){
+    playButton.textContent = wanted ? '■ Stop preview' : '▶ Play preview';
+    if (!sourceReady()) {
+      setState(status && status.capture_state === 'error' ? 'capture unavailable' : 'waiting for capture',
+        status && status.capture_state === 'error' ? 'err' : '');
+      overlay(captureMessage());
+    } else if (previewIssue) {
+      setState('preview unsupported', 'err');
+      overlay(previewIssue);
+    } else if (playBlocked) {
+      setState('press video Play', '');
+      overlay('Press Play in the video controls to begin playback.');
+    } else if (!wanted) {
+      setState('stream available', '');
+      overlay('Press Play to start the live preview.');
+    } else if (lastProgress && Date.now() - lastProgress < 3000 && !v.paused) {
+      setState('live', 'live');
+      ov.style.display = 'none';
+    } else if (player && v.paused && v.currentTime > 0) {
+      setState('preview paused', '');
+      overlay('Press Play in the video controls to resume.');
+    } else {
+      setState('buffering', '');
+      overlay('Waiting for video playback…');
+    }
+  }
+  function startPlayer(){
+    if (!wanted || player || !sourceReady() || Date.now() < retryAfter) return;
+    if (!window.flvjs || !flvjs.isSupported()) {
+      wanted = false;
+      previewIssue = 'This browser cannot play the preview. Try a browser with H.264 MediaSource support, or use the RTMP URL in OBS.';
+      render();
+      return;
+    }
+    try {
+      var created = flvjs.createPlayer(
+        {type:'flv', url:flvUrl, isLive:true, hasAudio:!!status.audio, hasVideo:true},
+        {enableStashBuffer:false, lazyLoad:false, autoCleanupSourceBuffer:true,
+         autoCleanupMaxBackwardDuration:15, autoCleanupMinBackwardDuration:5});
+      player = created;
+      created.attachMediaElement(v);
+      created.on(flvjs.Events.ERROR, function(type, detail){
+        if (player !== created) return;
+        destroyPlayer();
+        retryAfter = Date.now() + 3000;
+        setState('playback error', 'err');
+        overlay('Playback interrupted: ' + detail + '. Reconnecting…');
+      });
+      created.load();
+      var promise = v.play();
+      if (promise && promise.catch) promise.catch(function(){
+        if (player !== created) return;
+        playBlocked = true;
+        render();
+      });
+      render();
+    } catch (e) {
+      destroyPlayer();
+      retryAfter = Date.now() + 3000;
+      setState('playback error', 'err');
+      overlay('Could not start playback. Reconnecting…');
+    }
+  }
+  v.addEventListener('timeupdate', function(){
+    if (!player) return;
+    if (v.currentTime > lastTime && !v.paused && v.readyState >= 2) {
+      playBlocked = false;
+      lastTime = v.currentTime;
+      lastProgress = Date.now();
+    }
+    // Keep live viewing close to the newest buffered frames after a stall.
+    if (!v.paused && v.buffered.length) {
+      var edge = v.buffered.end(v.buffered.length - 1);
+      if (edge - v.currentTime > 3) v.currentTime = Math.max(0, edge - 0.5);
+    }
+    render();
+  });
+  v.addEventListener('pause', render);
+  v.addEventListener('waiting', function(){
+    lastProgress = 0;
+    render();
+  });
+  v.addEventListener('volumechange', function(){
+    muteButton.textContent = v.muted ? '🔇 Unmute' : '🔊 Mute';
+  });
+  playButton.onclick = function(){
+    wanted = !wanted;
+    previewIssue = null; playBlocked = false;
+    retryAfter = 0;
+    if (!wanted) destroyPlayer();
+    render();
+    startPlayer();
   };
+  document.getElementById('reload').onclick = function(){
+    wanted = true;
+    previewIssue = null; playBlocked = false;
+    retryAfter = 0;
+    destroyPlayer();
+    render();
+    startPlayer();
+  };
+  muteButton.onclick = function(){ v.muted = !v.muted; };
 
-  function poll(){
-    fetch('/status').then(function(r){return r.json();}).then(function(s){
-      document.getElementById('res').textContent = s.video || "—";
-      document.getElementById('fps').textContent = s.fps ? s.fps + " fps" : "—";
-      document.getElementById('aud').textContent = s.audio ? "AAC" : "none (video only)";
-      document.getElementById('cli').textContent = s.clients;
-      document.getElementById('rtmp').textContent =
-        "rtmp://" + host + ":" + (s.rtmp_port||1935) + "/live/stream";
-      if (dot.className.indexOf("live") < 0) setState("ready", "");
-    }).catch(function(){ setState("offline", "err"); });
-    fetch('/log').then(function(r){return r.text();}).then(function(t){
-      var el = document.getElementById('log');
-      el.textContent = t.slice(-4000);
-      el.scrollTop = el.scrollHeight;
-    }).catch(function(){});
+  async function fetchWithTimeout(path, kind){
+    var controller = new AbortController();
+    var timeout = setTimeout(function(){ controller.abort(); }, 4000);
+    try {
+      var response = await fetch(path, {cache:'no-store', signal:controller.signal});
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return await response[kind]();
+    } finally { clearTimeout(timeout); }
   }
-  poll(); setInterval(poll, 2000);
+  async function poll(){
+    try {
+      var next = await fetchWithTimeout('/status', 'json');
+      if (stopped) return;
+      var audioChanged = status && status.audio !== next.audio;
+      status = next;
+      document.getElementById('res').textContent = status.video || '—';
+      document.getElementById('fps').textContent = status.fps ? status.fps + ' fps' : '—';
+      var audioActive = status.audio && status.audio_frames > 0 &&
+        status.audio_age_ms >= 0 && status.audio_age_ms < 3000;
+      document.getElementById('aud').textContent = audioActive ? 'AAC · 48 kHz stereo' : 'waiting for audio';
+      muteButton.disabled = !audioActive;
+      document.getElementById('cli').textContent = status.clients;
+      document.getElementById('rtmp').textContent =
+        'rtmp://' + location.hostname + ':' + (status.rtmp_port || 1935) + '/live/stream';
+      if (!sourceReady() || audioChanged) destroyPlayer();
+      render();
+      startPlayer();
+    } catch (e) {
+      if (stopped) return;
+      status = null;
+      destroyPlayer();
+      setState('console unreachable', 'err');
+      overlay('Cannot reach the console. Check the payload and network connection.');
+    }
+    try {
+      var log = await fetchWithTimeout('/log', 'text');
+      if (stopped) return;
+      var el = document.getElementById('log');
+      el.textContent = log.slice(-4000);
+      el.scrollTop = el.scrollHeight;
+    } catch (e) {}
+    if (!stopped) timer = setTimeout(poll, 2000);
+  }
+  window.addEventListener('pagehide', function(){
+    stopped = true;
+    wanted = false;
+    clearTimeout(timer);
+    destroyPlayer();
+  });
+  poll();
 })();
 </script>
 </body>

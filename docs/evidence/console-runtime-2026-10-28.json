@@ -1,0 +1,24 @@
+{
+  "observed_utc": "2026-10-28T21:16:08.091367+00:00",
+  "url": "http://192.168.0.190:8081",
+  "payload_sha256": "323287245d7d77220d57dbf8a6bd9d26a21cece769110e7610a3a01324003cf1",
+  "payload_bytes": 442752,
+  "status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 87037,
+    "audio_frames": 68623,
+    "last_video_ms": 1469184,
+    "last_audio_ms": 1469208,
+    "video_age_ms": 13,
+    "audio_age_ms": 10,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 0,
+    "rtmp_port": 1936
+  },
+  "video_read_failures_in_log": 1,
+  "capture_retry_events_in_log": 1,
+  "notes": "One native video error 0x81950009 was followed by automatic capture close, a five-second retry, successful reopen and both tracks streaming. Cause of the native error is unknown; no fault injection was performed."
+}

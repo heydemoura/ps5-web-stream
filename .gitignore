@@ -2,3 +2,5 @@
 src/gen/
 *.o
 *.d
+build/
+__pycache__/

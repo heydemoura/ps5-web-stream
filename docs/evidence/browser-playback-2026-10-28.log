@@ -1,0 +1,6 @@
+Local generated testsrc2/sine fixture; this is not PS5 capture evidence.
+Chromium via installed Google Chrome, headless; AddressSanitizer + UBSan host fixture server.
+Command: PLAYWRIGHT_MODULE=<installed playwright-core> CHROME_PATH=<installed Chrome> PS5HS_TEST_URL=http://127.0.0.1:18081/ node tests/test_playback_browser.cjs
+Result: decoded H.264 and AAC, unmuted, advanced at least two seconds, reconnected, stopped.
+Observed sample: currentTime=1.045369, videoWidth=320, videoHeight=180, totalVideoFrames=35, audioDecodedBytes=22377, muted=false.
+All asset/media requests same origin. No JavaScript page errors. /status clients=0 after stop.

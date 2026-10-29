@@ -1,0 +1,8 @@
+Browser playback decoded H.264 and AAC, unmuted, reconnected and stopped: {
+  time: 1.044025,
+  width: 1920,
+  height: 1080,
+  frames: 69,
+  audio: 22991,
+  muted: false
+}

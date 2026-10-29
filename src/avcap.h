@@ -3,7 +3,7 @@
  * Capture backend built on libSceAvcap2 — the console's "AV capture" service
  * that the system's own Share / broadcast code uses. It taps the composited
  * HDMI scan-out and returns it already encoded as an H.264 (AVC) Annex-B
- * access unit per call, plus the matching audio, without a capture card.
+ * access unit per call. See docs/AVCAP2.md for the tested firmware and ABI.
  *
  * libSceAvcap2 is not part of the payload SDK, so every entry point is
  * resolved at runtime with dlopen/dlsym against the on-console module. The
@@ -19,14 +19,14 @@
 typedef struct {
   int      width, height;
   int      fps;
-  int      bitrate;      /* value written to the encoder config field */
+  int      bitrate;      /* requested video bitrate, kilobits per second */
   int      have_audio;
 } avcap_config;
 
 typedef struct {
   size_t   len;          /* encoded bytes in the caller buffer */
-  uint32_t pts_ms;       /* presentation timestamp, milliseconds */
-  uint32_t dts_ms;
+  uint64_t pts_us;       /* presentation timestamp, microseconds */
+  uint64_t dts_us;
   int      keyframe;     /* 1 if this access unit is an IDR */
 } avcap_frame;
 
@@ -36,7 +36,7 @@ int  avcap_load(void);
 /* Initialize the capture service (sceAvcap2Initialize). */
 int  avcap_init(void);
 
-/* Open the video (and, if cfg->have_audio, audio) capture handles. */
+/* Open video; audio capture/encoding is owned by audio.h. */
 int  avcap_open(const avcap_config *cfg);
 
 /* Read one encoded video access unit into `buf`. Returns:
@@ -45,10 +45,10 @@ int  avcap_open(const avcap_config *cfg);
  *  <0  fatal error (the SCE return code) */
 int  avcap_read_video(uint8_t *buf, size_t bufsize, avcap_frame *fr);
 
-/* Read one audio chunk (PCM) into `buf`. Same return convention. */
-int  avcap_read_audio(uint8_t *buf, size_t bufsize, avcap_frame *fr);
-
+/* Stop and close video only; the shared service stays initialized for audio. */
 void avcap_close(void);
+/* After every video/audio handle has closed. */
+void avcap_terminate(void);
 
 /* Last raw SCE return code seen, for diagnostics. */
 int  avcap_last_error(void);

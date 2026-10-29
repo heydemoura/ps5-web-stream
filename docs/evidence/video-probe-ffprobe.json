@@ -1,0 +1,18 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_name": "h264",
+            "profile": "Main",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "nb_read_frames": "177"
+        }
+    ]
+}

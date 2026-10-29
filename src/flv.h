@@ -37,14 +37,16 @@ size_t flv_audio_tag(uint8_t **out, const uint8_t *data, size_t len,
                      int aac_packet_type, uint32_t ts_ms);
 
 /* Convert an Annex-B byte stream (00 00 01 / 00 00 00 01 start codes) into
- * AVCC length-prefixed form in `out` (caller buffer >= inlen+16). Also reports
- * SPS/PPS pointers if present. Returns AVCC payload length. */
-size_t annexb_to_avcc(const uint8_t *in, size_t inlen, uint8_t *out,
+ * AVCC length-prefixed form in `out`, bounded by `outcap`. Also reports
+ * SPS/PPS pointers if present. Returns AVCC payload length, or 0 on invalid
+ * input / insufficient space. */
+size_t annexb_to_avcc(const uint8_t *in, size_t inlen, uint8_t *out, size_t outcap,
                       const uint8_t **sps, size_t *sps_len,
                       const uint8_t **pps, size_t *pps_len);
 
-/* Build an AVCDecoderConfigurationRecord from one SPS and one PPS. */
-size_t avc_decoder_config(uint8_t *out, const uint8_t *sps, size_t sps_len,
+/* Build an AVCDecoderConfigurationRecord from one SPS and one PPS.
+ * Returns 0 on invalid parameter sets or insufficient output space. */
+size_t avc_decoder_config(uint8_t *out, size_t outcap, const uint8_t *sps, size_t sps_len,
                           const uint8_t *pps, size_t pps_len);
 
 /* ---- Broadcaster --------------------------------------------------------- */
@@ -69,6 +71,9 @@ typedef struct {
 } broadcaster;
 
 void broadcaster_init(broadcaster *b);
+
+/* Clear codec state and reprime existing clients after a capture restart. */
+void broadcaster_reset(broadcaster *b);
 
 /* Set the AVC/AAC sequence headers (raw config-record bytes). */
 void broadcaster_set_avc_config(broadcaster *b, const uint8_t *cfg, size_t len);

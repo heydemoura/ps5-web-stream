@@ -1,0 +1,13 @@
+backend open=0x0
+frame bytes=24646 pts_us=14526634583 dts_us=14526617900 idr=1
+frame bytes=901 pts_us=14526667950 dts_us=14526634583 idr=0
+frame bytes=851 pts_us=14526684633 dts_us=14526667950 idr=0
+frames=177
+avcap: Initialize -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+avcap: ResourceArbitrator STOP -> 0x0
+done

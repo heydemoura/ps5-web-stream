@@ -1,0 +1,47 @@
+{
+  "observed_utc": "2026-10-28T21:18:15.497728+00:00",
+  "payload_sha256": "508c991d447d52a9aea074b2ce4becbe65aec022b21eae074bde877bdb899047",
+  "payload_bytes": 442752,
+  "startup": "PS5 HDMI Stream ff05180-dirty: PID 158 HTTP 8081 / RTMP 1936",
+  "status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 2746,
+    "audio_frames": 2165,
+    "last_video_ms": 46293,
+    "last_audio_ms": 46310,
+    "video_age_ms": 8,
+    "audio_age_ms": 7,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 1,
+    "rtmp_port": 1936
+  },
+  "rtmp_sample": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "nb_read_frames": "596"
+      },
+      {
+        "codec_name": "aac",
+        "sample_rate": "48000",
+        "channels": 2,
+        "nb_read_frames": "469"
+      }
+    ],
+    "format": {
+      "duration": "10.042000",
+      "size": "645422"
+    }
+  },
+  "decode_exit": 0,
+  "decode_errors": "",
+  "browser_log": "console-browser-final-2026-10-28.log",
+  "previous_instance_shutdown": "SIGTERM delivered to our PID148; process gone and HTTPport released before final upload"
+}

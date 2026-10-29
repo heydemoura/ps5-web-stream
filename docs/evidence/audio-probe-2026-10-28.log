@@ -1,0 +1,12 @@
+audio probe start
+dependencies: ipmi=88001d8e0 ajmi=88001f2c0
+avcap Initialize -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004cd580
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+AAC packet 1: 334 bytes pts=2761817906
+AAC packet 2: 334 bytes pts=2761823026
+AAC packet 3: 335 bytes pts=2761828146
+captured=141 encoded=141 empty=1392 timestamp range=2761817906..2762534706
+audio probe exit=0

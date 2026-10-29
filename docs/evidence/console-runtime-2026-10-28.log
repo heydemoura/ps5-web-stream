@@ -1,0 +1,49 @@
+PS5 HDMI Stream ff05180-dirty: PID 148 HTTP 8081 / RTMP 1936
+http: listening on :8081
+rtmp: listening on :1936
+avcap: Initialize -> 0x0
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: PCM clock pts=16070947075 us monotonic_ms=16069352
+main: video clock pts=16070944241 dts=16070927558 us monotonic_ms=16069355
+main: PCM clock pts=16070968408 us monotonic_ms=16069374
+main: PCM clock pts=16070989741 us monotonic_ms=16069393
+rtmp: cmd 'connect' txn=1
+rtmp: cmd 'createStream' txn=2
+rtmp: cmd 'getStreamLength' txn=3
+rtmp: cmd 'play' txn=4
+rtmp: cmd 'connect' txn=1
+rtmp: cmd 'createStream' txn=2
+rtmp: cmd 'getStreamLength' txn=3
+rtmp: cmd 'play' txn=4
+rtmp: cmd 'connect' txn=1
+rtmp: cmd 'createStream' txn=2
+rtmp: cmd 'getStreamLength' txn=3
+rtmp: cmd 'play' txn=4
+main: video read failed 0x81950009
+avcap: ResourceArbitrator STOP -> 0x0
+main: capture unavailable (0x81950009); retrying in 5s
+avcap: GetVideoOutMode -> 0x0 mode=0x13c
+avcap: ResourceArbitrator 0xb4 RUNNING
+avcap: OpenVideo 1920x1080@60 8000 kbps mode=0x13c -> 0x0
+avcap: NonVcl headers -> 0x0 (41 bytes)
+avcap: Start -> 0x0
+audio: OpenAudio -> 0x0 handle=0x8004bd640
+audio: Start -> 0x0
+audio: AAC Initialize -> 0x0
+audio: AAC Create -> 0x0 detail=0x0
+main: PCM clock pts=16264690766 us monotonic_ms=16263096
+main: video clock pts=16264703458 dts=16264686775 us monotonic_ms=16263116
+main: PCM clock pts=16264712100 us monotonic_ms=16263128
+main: PCM clock pts=16264733433 us monotonic_ms=16263146
+rtmp: cmd 'connect' txn=1
+rtmp: cmd 'createStream' txn=2
+rtmp: cmd 'getStreamLength' txn=3
+rtmp: cmd 'play' txn=4

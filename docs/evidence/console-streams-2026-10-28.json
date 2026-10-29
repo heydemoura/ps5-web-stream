@@ -1,0 +1,90 @@
+{
+  "http": {
+    "duration_s": 90.039,
+    "bytes": 8608429,
+    "sha256": "d4b294bec31d9da4025170ff0a64afc01e1587c6f26fd8c2404949d199a256a4",
+    "decode_exit": 0,
+    "decode_errors": "",
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Main",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "60000/1001",
+        "nb_read_frames": "5351"
+      },
+      {
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "r_frame_rate": "0/0",
+        "nb_read_frames": "4218"
+      }
+    ],
+    "keyframes": 45,
+    "max_keyframe_interval_s": 2.0360000000000014,
+    "tracks": {
+      "0": {
+        "packets": 5351,
+        "first_pts": 0.016,
+        "last_pts": 90.023,
+        "monotonic_dts": true
+      },
+      "1": {
+        "packets": 4218,
+        "first_pts": 0.041,
+        "last_pts": 90.004,
+        "monotonic_dts": true
+      }
+    }
+  },
+  "rtmp": {
+    "duration_s": 90.039,
+    "bytes": 8608429,
+    "sha256": "d4b294bec31d9da4025170ff0a64afc01e1587c6f26fd8c2404949d199a256a4",
+    "decode_exit": 0,
+    "decode_errors": "",
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Main",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "60000/1001",
+        "nb_read_frames": "5351"
+      },
+      {
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "r_frame_rate": "0/0",
+        "nb_read_frames": "4218"
+      }
+    ],
+    "keyframes": 45,
+    "max_keyframe_interval_s": 2.0360000000000014,
+    "tracks": {
+      "0": {
+        "packets": 5351,
+        "first_pts": 0.016,
+        "last_pts": 90.023,
+        "monotonic_dts": true
+      },
+      "1": {
+        "packets": 4218,
+        "first_pts": 0.041,
+        "last_pts": 90.004,
+        "monotonic_dts": true
+      }
+    }
+  },
+  "status": {
+    "samples": 20,
+    "all_streaming": true,
+    "max_video_age_ms": 18,
+    "max_audio_age_ms": 21
+  }
+}

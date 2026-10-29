@@ -1,0 +1,6 @@
+Date: 2026-10-28T21:16:45.331977+00:00
+Command: make HTTP_PORT=8081 RTMP_PORT=1936
+Exit: 0
+$PS5_PAYLOAD_SDK/bin/prospero-clang -Wall -Wextra -Werror -O2 -g -rdynamic -pthread -Isrc -DPS5HS_VERSION=\"ff05180-dirty\" -DDEF_HTTP_PORT=8081 -DDEF_RTMP_PORT=1936 -o ps5-hdmi-stream.elf src/main.c src/flv.c src/avcap.c src/rtmp.c src/http.c src/scanin.c src/audio.c src/status.c -pthread
+ELF bytes: 442752
+ELF SHA256: 508c991d447d52a9aea074b2ce4becbe65aec022b21eae074bde877bdb899047
