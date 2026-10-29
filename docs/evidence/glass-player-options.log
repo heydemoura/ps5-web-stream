@@ -1,0 +1,7 @@
+/: muted autoplay, glass controls visible, desktop/mobile passed
+/player: muted autoplay, glass controls visible, desktop/mobile passed
+/player?controls=0: muted autoplay, controls remain hidden, desktop/mobile passed
+/player/?controls=false: muted autoplay, controls remain hidden, desktop/mobile passed
+/player?controls=1: muted autoplay, glass controls visible, desktop/mobile passed
+/player?controls=invalid: muted autoplay, glass controls visible, desktop/mobile passed
+/?controls=0: muted autoplay, glass controls visible, desktop/mobile passed

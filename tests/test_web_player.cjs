@@ -56,7 +56,6 @@ const dimensions = {'720p':[1280,720], '1080p':[1920,1080], '1440p':[2560,1440],
     await dashboard.goto(base + '/');
     assert.equal(await dashboard.locator('#resolution option').count(), 4);
     assert.equal(await dashboard.locator('a[href="/player"]').count(), 1);
-    await dashboard.locator('#playback').press('Enter');
     await dashboard.waitForFunction(() => document.getElementById('v').currentTime > 1, null, {timeout:30000});
     await dashboard.locator('#quality-menu summary').click();
     for (const mode of modes) {

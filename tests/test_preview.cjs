@@ -137,12 +137,11 @@ test('fullscreen player autoplays muted without a gesture and skips dashboard-on
   h.close(); assert(h.players[0].dead); assert.equal(h.timers.size, 0);
 });
 
-test('dashboard waits for Play; capture failures and stale media never claim live', async () => {
+test('dashboard autoplays when capture is ready; failures and stale media never claim live', async () => {
   const h = harness({initial:streaming({capture_state:'error', error:-2120941560,
     video_frames:0, video_age_ms:-1})}); await settle();
   assert.equal(h.players.length, 0);
   assert.equal(h.node('state').textContent, 'capture unavailable');
-  h.node('play').onclick();
   assert.equal(h.players.length, 0);
   h.status({capture_state:'streaming', error:0, video_frames:10, video_age_ms:0});
   await h.poll(); assert.equal(h.players.length, 1);
@@ -152,8 +151,8 @@ test('dashboard waits for Play; capture failures and stale media never claim liv
   assert.equal(h.node('state').textContent, 'waiting for capture');
   h.close();
   const idle = harness(); await settle();
-  assert.equal(idle.players.length, 0, 'A dashboard status poll is not a request to play');
-  assert.equal(idle.node('state').textContent, 'stream available');
+  assert.equal(idle.players.length, 1, 'Dashboard autoplay is the default');
+  assert.equal(idle.node('state').textContent, 'buffering');
   idle.close();
 });
 

@@ -1,5 +1,10 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>PS5 · Live player</title><link rel="stylesheet" href="/player.css"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>PS5 · Live player</title><link rel="stylesheet" href="/player.css"><script>
+// Apply before the body is painted: hidden controls must never flash on load.
+if (['0', 'false'].includes(new URL(location.href).searchParams.get('controls'))) {
+  document.documentElement.dataset.controls = 'hidden';
+}
+</script></head>
 <body data-player="fullscreen">
 <live-video-player>
 <media-container class="console-player" aria-label="PS5 live player">

@@ -19,10 +19,18 @@ The normal build default is HTTP port `8080`.
 
 ## Watch and configure
 
-Open `/player` to fill the browser viewport with live video. Playback starts
-muted automatically, without pressing Play. Select **Unmute** for audio. If the
+Open `/player` to fill the browser viewport with live video. Both the dashboard
+and fullscreen player start playback muted automatically, without pressing Play. Select **Unmute** for audio. If the
 browser blocks playback, use its video Play control. A browser with H.264/AAC
 MediaSource support is required.
+
+For a clean fullscreen view, use **`/player?controls=0`** (or
+`/player?controls=false`). This hides the glass control bar and status header
+from the first paint; hover, tap and keyboard focus do not reveal them. Autoplay
+and reconnection continue, with audio muted by default. Omit the parameter or
+use `controls=1` to show controls again. The option applies only to `/player`.
+Non-interactive connection/error messages remain visible when needed.
+
 
 Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
 mute, volume, reconnect, picture-in-picture and fullscreen. Open **Settings**

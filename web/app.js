@@ -7,7 +7,8 @@
   var playButton = document.getElementById('play');
   var muteButton = document.getElementById('mute');
   var fullscreenPage = document.body.dataset.player === 'fullscreen';
-  var player = null, wanted = fullscreenPage, status = null, timer = null;
+  var controlsHidden = fullscreenPage && ['0', 'false'].includes(new URL(location.href).searchParams.get('controls'));
+  var player = null, wanted = true, status = null, timer = null;
   var settingsBusy = false, settingsDirty = false, settingsError = '';
   var resolution = document.getElementById('resolution');
   var settingsForm = document.getElementById('settings-form');
@@ -55,7 +56,7 @@
       overlay(previewIssue);
     } else if (playBlocked) {
       setState('press video Play', '');
-      overlay('Press Play in the video controls to begin playback.');
+      overlay(controlsHidden ? 'Autoplay was blocked. Open /player without the controls parameter to start playback.' : 'Press Play in the video controls to begin playback.');
     } else if (!wanted) {
       setState('stream available', '');
       overlay('Press Play to start the live preview.');

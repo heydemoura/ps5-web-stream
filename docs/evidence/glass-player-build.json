@@ -1,0 +1,47 @@
+{
+  "elf_sha256": "164c226c33070da93b1416dec9effa62bf7061ad060993ab17e893dd394c98ce",
+  "source_sha256": {
+    "web/app.js": "bdfc01090a5a7e08b8c8bae7783ccb3baa0ec5a49377b7a13dc33c8203c4953e",
+    "web/player.html": "bc41425c9bafc509b048d9ec5dcef7c6e778cf7616eca1997f6d25276b8e632b",
+    "web/player.css": "a29910be3f5e0cc97563395864ed052ea2af20d5df21ef32549112e583388cc4",
+    "web/index.html": "61e024fc42dec30d91a18d1d35aa7f27fc9befa24b1b581a8698372ac9406c41"
+  },
+  "startup": "PS5 HDMI Stream d5ca0e2-dirty: PID 107 HTTP 8081",
+  "final_status": {
+    "capture_state": "streaming",
+    "error": 0,
+    "video_frames": 6586,
+    "audio_frames": 5229,
+    "last_video_ms": 112186,
+    "last_audio_ms": 112209,
+    "video_age_ms": 5,
+    "audio_age_ms": 20,
+    "video": "1920x1080",
+    "fps": 60.0,
+    "audio": true,
+    "clients": 3,
+    "requested_resolution": "1080p",
+    "active_resolution": "1080p",
+    "settings_revision": 5,
+    "capture_revision": 5,
+    "stream_revision": 5,
+    "applying": false,
+    "resolutions": [
+      "4k",
+      "1440p",
+      "1080p",
+      "720p"
+    ]
+  },
+  "validation": {
+    "host_suite": "Passed ASan/UBSan tests, HTTP transport and twelve behavior scenarios",
+    "sdk_build": "Passed",
+    "console_url_options": "All seven routes passed desktop/mobile, autoplay and forced-hidden checks; pre-app visibility verified",
+    "console_browser": "All four resolutions passed near60fps with audio, playback, volume, fullscreen, resolution changes, reconnect and Stop",
+    "visual_review": "Synthetic fixture screenshots inspected at1280px and390px; mobile settings stay inside player"
+  },
+  "limitations": [
+    "Physical mobile devices and non-Chromium browsers not tested",
+    "Autoplay remains subject to browser policy; muted is the default"
+  ]
+}

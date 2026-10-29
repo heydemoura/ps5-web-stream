@@ -11,6 +11,29 @@ desktop/mobile viewport coverage, Unmute, reconnect and Stop. These results
 distinguish native decoded dimensions from the size at which a browser
 displays video.
 
+## Liquid glass controls and player URL options
+
+The control bar, status badges and settings menu now use translucent glass
+surfaces with blur, highlights and rounded borders. An opaque fallback is used
+when reduced transparency is requested. Both routes autoplay muted by default.
+
+`/player?controls=0` and `/player?controls=false` hide the controls and header
+before the application initializes. Hover, clicking the video, and keyboard
+focus cannot reveal them. Other values leave controls visible; dashboard URL
+parameters do not hide its controls. Non-interactive error messages remain.
+
+`tests/test_player_options.cjs` covers autoplay, both hidden aliases, the trailing
+slash route, visible/unknown values, dashboard scope, focus/hover behavior and
+settings bounds at 1280px and 390px. It also blocks the application script to
+verify that controls are hidden before initialization. Run with the same browser
+environment variables as `test_web_player.cjs`. Synthetic-video screenshots
+were inspected at desktop and mobile widths. The
+[console URL checks](evidence/glass-player-options.log),
+[playback regression](evidence/glass-player-browser.log),
+[host suite](evidence/glass-player-host.log) and
+[deployed build identity](evidence/glass-player-build.json) record passing results.
+The console returned to healthy 1080p capture after all four resolution checks.
+
 ## Video.js player validation
 
 The current dashboard and fullscreen page use locally bundled Video.js 10.2.0
