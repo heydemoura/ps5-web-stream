@@ -329,6 +329,13 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   return 1;
 }
 
+int avcap_request_keyframe(void) {
+  if (!g_video) return AVCAP_INVALID;
+  int r = p_RequestKeyFrame(g_video);
+  if (r < 0) { LOG("avcap: on-demand RequestKeyFrame -> 0x%x", r); return r; }
+  return 0;
+}
+
 void avcap_close(void) {
   if (g_video) {
     LOG("avcap: Stop -> 0x%x", p_Stop(g_video));

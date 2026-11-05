@@ -161,6 +161,7 @@ the workflow uses GitHub's provided token to upload release assets.
 | GET | `/` | Dashboard and capture controls |
 | GET | `/player` | Fullscreen page with muted autoplay |
 | GET | `/live.flv` | Live H.264/AAC HTTP-FLV stream |
+| GET | `/frame.h264` | Latest captured frame as a standalone H.264 keyframe |
 | GET | `/status` | Capture errors, counters, frame age and settings state |
 | GET | `/settings` | Requested/active resolution and revision state |
 | POST | `/settings` | Request a shared capture resolution |
@@ -180,6 +181,27 @@ acknowledges the request; it does not mean native capture succeeded. Check
 `/status`. `settings_revision` identifies requests, `capture_revision` identifies
 the configuration being attempted, and `stream_revision` identifies capture
 sessions so viewers can reconnect when the source changes.
+
+### Capture a frame
+
+`/frame.h264` returns a still frame from the live stream. The console's capture
+hardware only produces encoded video, so the frame is the newest H.264 keyframe
+(SPS, PPS and IDR) as a standalone Annex-B stream, at the capture resolution.
+The payload does not decode or re-encode it. Convert it to an image with any
+H.264 decoder:
+
+```sh
+ffmpeg -i http://192.168.0.190:8081/frame.h264 -frames:v 1 frame.png
+```
+
+If the stored keyframe is older than 500 ms, the server discards it, asks the
+encoder for a new one and waits up to one second; a stale frame is never
+served. These
+on-demand keyframes are shared with live viewers, so polling is limited to
+about two extra keyframes per second. Response headers report
+`X-Frame-Width`, `X-Frame-Height`, `X-Frame-Timestamp-Ms` (stream timeline)
+and `X-Frame-Age-Ms`. If no new keyframe arrives in time (before capture
+starts, or while it restarts), the endpoint returns `503`.
 
 ## Tests
 
@@ -219,8 +241,9 @@ exit. Commands, mode results and current limitations are in
 ## Layout and license
 
 `src/main.c` manages capture; `avcap.*` and `audio.*` implement native
-media interfaces; `flv.*` muxes and broadcasts; `http.*`, `settings.*` and
-`status.*` provide the web server and controls. `web/` contains the dashboard,
+media interfaces; `flv.*` muxes and broadcasts; `snapshot.*` keeps the latest
+keyframe; `http.*`, `settings.*` and `status.*` provide the web server and
+controls. `web/` contains the dashboard,
 fullscreen player and embedded dependencies; `tests/` contains regressions,
 fixtures and console probes.
 

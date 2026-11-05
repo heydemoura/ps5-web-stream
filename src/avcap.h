@@ -48,6 +48,10 @@ int  avcap_resource_id(void);
  *  <0  fatal error (the SCE return code) */
 int  avcap_read_video(uint8_t *buf, size_t bufsize, avcap_frame *fr);
 
+/* Ask the open encoder for an IDR soon (capture thread only). Returns 0 on
+ * success, or the SCE error; a failure does not invalidate the session. */
+int  avcap_request_keyframe(void);
+
 /* Stop and close video only; the shared service stays initialized for audio. */
 void avcap_close(void);
 /* After every video/audio handle has closed. */

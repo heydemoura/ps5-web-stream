@@ -168,6 +168,15 @@ int main(void) {
     avcap_close(); assert(!running && registered==3);
   }
   assert(registrations[0]==1 && registrations[1]==1 && releases[1]==3);
+  /* On-demand IDR requests (for /frame.h264) need an open session; a native
+   * failure is reported without closing capture. */
+  assert(avcap_request_keyframe()==AVCAP_INVALID);
+  assert(avcap_open(&modes[3])==0); /* mock still expects the last 4K mode */
+  int before=key_requests;
+  assert(avcap_request_keyframe()==0 && key_requests==before+1);
+  key_error=(int)0x81950008;
+  assert(avcap_request_keyframe()==key_error && g_video);key_error=0;
+  avcap_close();
   avcap_terminate();avcap_terminate();assert(terminated==1 && !registered);
   puts("avcap: sequencing, RA cleanup, nonblocking status, headers, keyframe requests and timestamps pass");
   return 0;
