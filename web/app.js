@@ -6,6 +6,7 @@
   var state = document.getElementById('state');
   var playButton = document.getElementById('play');
   var muteButton = document.getElementById('mute');
+  var snapshotButton = document.getElementById('snapshot');
   var fullscreenPage = document.body.dataset.player === 'fullscreen';
   var options = new URL(location.href).searchParams;
   var controlsHidden = fullscreenPage && ['0', 'false'].includes(options.get('controls'));
@@ -48,7 +49,11 @@
     if (status.capture_state === 'streaming') return 'Waiting for new video from the console…';
     return 'Waiting for console capture…';
   }
+  function snapshotReady(){
+    return !!player && v.readyState >= 2 && v.videoWidth > 0 && v.videoHeight > 0;
+  }
   function render(){
+    if (snapshotButton) snapshotButton.disabled = !snapshotReady();
     playButton.textContent = wanted ? 'Stop' : 'Play';
     playButton.hidden = !wanted;
     if (!sourceReady()) {
@@ -184,6 +189,29 @@
     startPlayer();
   };
   muteButton.onclick = function(){ v.muted = !v.muted; };
+  function snapshotName(){
+    var d = new Date(Date.now());
+    function two(n){ return String(n).padStart(2, '0'); }
+    return 'ps5-snapshot-' + d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) +
+      '_' + two(d.getHours()) + '-' + two(d.getMinutes()) + '-' + two(d.getSeconds()) + '.jpg';
+  }
+  // Save the frame on screen at full capture resolution. The video is
+  // same-origin MediaSource media, so the canvas is never tainted.
+  if (snapshotButton) snapshotButton.onclick = function(){
+    if (!snapshotReady()) return;
+    var canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+    var name = snapshotName();
+    canvas.toBlob(function(blob){
+      if (!blob) return;
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url; link.download = name; link.hidden = true;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+    }, 'image/jpeg', 0.92);
+  };
 
   async function fetchWithTimeout(path, kind){
     var controller = new AbortController();

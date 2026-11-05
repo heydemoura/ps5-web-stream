@@ -68,7 +68,10 @@ changes the stream seen by other viewers. OBS browser audio is controlled by
 
 
 Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
-mute, volume, reconnect, picture-in-picture and fullscreen. Open **Settings**
+mute, volume, snapshot, reconnect, picture-in-picture and fullscreen. The
+snapshot button (📷) downloads the frame currently on screen as a
+full-resolution JPEG; it is captured in the browser, so it needs no extra
+request to the console. Open **Settings**
 inside the player to choose a resolution, select **Apply resolution**, or Stop
 the stream. The dashboard at `/` also shows capture diagnostics. This changes the
 console capture for **all viewers**; connected players reconnect automatically.
@@ -184,7 +187,8 @@ sessions so viewers can reconnect when the source changes.
 
 ### Capture a frame
 
-`/frame.h264` returns a still frame from the live stream. The console's capture
+In a browser, use the player's snapshot button. For scripts, `/frame.h264`
+returns a still frame from the live stream. The console's capture
 hardware only produces encoded video, so the frame is the newest H.264 keyframe
 (SPS, PPS and IDR) as a standalone Annex-B stream, at the capture resolution.
 The payload does not decode or re-encode it. Convert it to an image with any
