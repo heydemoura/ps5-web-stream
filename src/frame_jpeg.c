@@ -122,14 +122,34 @@ int frame_jpeg_encode(const uint8_t *h264, size_t len, int qscale,
   return r;
 }
 
+typedef struct { snapshot_frame *frame; uint8_t *jpeg; size_t len; int result; } conversion;
+
+static void *convert_thread(void *arg) {
+  conversion *c = arg;
+  c->result = frame_jpeg_encode(c->frame->data, c->frame->len, FRAME_JPEG_QSCALE,
+                                &c->jpeg, &c->len);
+  return NULL;
+}
+
 int frame_jpeg_prepare(snapshot_frame *frame) {
   if (!frame) return -1;
   pthread_mutex_lock(&convert_lock);
   int r = 0;
   if (!frame->jpeg) {
-    uint8_t *jpeg = NULL; size_t len = 0;
-    r = frame_jpeg_encode(frame->data, frame->len, FRAME_JPEG_QSCALE, &jpeg, &len);
-    if (!r) { frame->jpeg_len = len; frame->jpeg = jpeg; }
+    /* The H.264 decoder needs far more stack than an HTTP worker gets by
+     * default on the console (a conversion there faults with SIGSEGV), so
+     * convert on a short-lived thread with an explicit stack. */
+    conversion c = {.frame = frame, .result = -1};
+    pthread_attr_t attr;
+    pthread_t thread;
+    r = -1;
+    if (!pthread_attr_init(&attr)) {
+      if (!pthread_attr_setstacksize(&attr, FRAME_JPEG_STACK_SIZE) &&
+          !pthread_create(&thread, &attr, convert_thread, &c) &&
+          !pthread_join(thread, NULL)) r = c.result;
+      pthread_attr_destroy(&attr);
+    }
+    if (!r) { frame->jpeg_len = c.len; frame->jpeg = c.jpeg; }
     else LOG("frame: JPEG conversion of %dx%d keyframe failed", frame->width, frame->height);
   }
   pthread_mutex_unlock(&convert_lock);

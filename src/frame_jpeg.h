@@ -21,6 +21,8 @@
 
 /* MJPEG quantiser scale: 1 is best, 31 worst. 2 is visually near-lossless. */
 #define FRAME_JPEG_QSCALE 2
+/* Stack for the conversion thread; held only while a conversion runs. */
+#define FRAME_JPEG_STACK_SIZE (8u * 1024 * 1024)
 
 /* Decode a standalone Annex-B H.264 keyframe and encode it as JPEG. On
  * success returns 0 and a malloc'd buffer the caller frees. */
