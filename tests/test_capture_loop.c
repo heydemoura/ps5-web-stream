@@ -10,6 +10,7 @@
 #include "audio.h"
 #include "flv.h"
 #include "status.h"
+#include "snapshot.h"
 
 static uint64_t fake_now = 1100;
 static int mocked_clock_gettime(clockid_t id, struct timespec *ts) {
@@ -34,7 +35,7 @@ struct audio_encoder { int unused; };
 static struct audio_capture mock_capture;
 static struct audio_encoder mock_encoder;
 static int opened_audio, closed_audio, opened_encoder, closed_encoder;
-static int audio_open_fails, video_closes, terminations, init_count;
+static int audio_open_fails, video_closes, terminations, init_count, key_requests;
 
 static const uint8_t sps_data[] = {0,0,0,1,0x67,0x64,0,0x28,0xaa};
 static const uint8_t pps_data[] = {0,0,1,0x68,0xee};
@@ -87,6 +88,7 @@ int avcap_load(void) { return 0; }
 int avcap_init(void) { init_count++; return 0; }
 int avcap_open(const avcap_config *cfg) { assert(cfg->fps == 60); return 0; }
 int avcap_resource_id(void) { return 0xb6; }
+int avcap_request_keyframe(void) { key_requests++; return 0; }
 void avcap_close(void) { video_closes++; }
 void avcap_terminate(void) { terminations++; }
 int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
@@ -227,6 +229,48 @@ static void test_failures_and_signal(void) {
   add_video(full_idr, sizeof(full_idr), 1, UINT64_MAX);
   assert(run_capture() < 0); check_cleanup(); assert(record_count == 0);
 }
+static void test_keyframe_snapshot(void) {
+  reset_test(); snapshot_clear(); key_requests = 0;
+  broadcaster_set_video_params(&g_bc, 3840, 2160, 60, 32000);
+  /* No frame yet: a reader gets nothing but leaves an IDR request behind. */
+  assert(!snapshot_acquire(0, 0));
+  add_video(full_idr, sizeof(full_idr), 1000000, 1000000);
+  add_video(p_data, sizeof(p_data), 1033333, 1033333);
+  stop_source(); assert(run_capture() == 0); check_cleanup();
+  assert(key_requests == 1 && !snapshot_take_keyframe_request());
+  snapshot_frame *frame = snapshot_acquire(60000, 0);
+  assert(frame && frame->width == 3840 && frame->height == 2160);
+  assert(frame->stream_ts_ms == records[0].ts);
+  /* Standalone Annex-B: native SPS, PPS, then the IDR; P pictures are not kept. */
+  static const uint8_t expected[] = {0,0,0,1,0x67,0x64,0,0x28,0xaa,
+                                     0,0,0,1,0x68,0xee,0,0,0,1,0x65,0x88};
+  assert(frame->len == sizeof(expected) && !memcmp(frame->data, expected, sizeof(expected)));
+  /* A fresh frame is served without forcing another IDR. */
+  assert(!snapshot_take_keyframe_request());
+  snapshot_frame *again = snapshot_acquire(60000, 0);
+  assert(again == frame && frame->refs == 3);
+  snapshot_release(again);
+  /* A newer IDR replaces the frame; a held reference stays valid. */
+  reset_test();
+  add_video(full_idr, sizeof(full_idr), 1066666, 1066666);
+  stop_source(); assert(run_capture() == 0);
+  snapshot_frame *newer = snapshot_acquire(60000, 0);
+  assert(newer && newer != frame && newer->seq > frame->seq);
+  assert(frame->len == sizeof(expected) && !memcmp(frame->data, expected, sizeof(expected)));
+  snapshot_release(frame);
+  /* Once stale, a request clears the stored frame instead of serving it; a
+   * reader still holding it keeps a valid copy. */
+  nanosleep(&(struct timespec){.tv_nsec = 5000000}, NULL); /* real time */
+  assert(!snapshot_acquire(0, 0) && snapshot_take_keyframe_request());
+  assert(!snapshot_acquire(60000, 0));
+  assert(newer->len == sizeof(expected) && !memcmp(newer->data, expected, sizeof(expected)));
+  snapshot_release(newer);
+  /* Invalid input is rejected rather than stored. */
+  static const uint8_t p_avcc[] = {0,0,0,2,0x41,0x88}, bad_avcc[] = {0,0,0,9,0x65};
+  assert(snapshot_store(sps_data+4, 5, pps_data+3, 2, p_avcc, sizeof(p_avcc), 1, 1, 0) < 0);
+  assert(snapshot_store(sps_data+4, 5, pps_data+3, 2, bad_avcc, sizeof(bad_avcc), 1, 1, 0) < 0);
+  assert(snapshot_store(NULL, 0, pps_data+3, 2, p_avcc, sizeof(p_avcc), 1, 1, 0) < 0);
+}
 static void test_entry_cleanup(void) {
   reset_test(); stop_source();
   pthread_mutex_destroy(&g_bc.mtx); /* entry point initializes its broadcaster */
@@ -238,12 +282,16 @@ static void test_entry_cleanup(void) {
   char settings_json[512];
   assert(capture_settings_json(settings_json,sizeof(settings_json)));
   assert(strstr(settings_json,"\"active_resolution\":null"));
+  /* Closing capture drops the last keyframe so a stale frame is never served. */
+  assert(!snapshot_acquire(60000, 0));
+  snapshot_take_keyframe_request();
 }
 int main(void) {
   broadcaster_init(&g_bc); g_bc.have_audio = 1;
   test_shared_clock_and_restart(); test_config_change(); test_regressions_and_stalls();
-  test_failures_and_signal(); test_resolution_change(); test_entry_cleanup();
+  test_failures_and_signal(); test_resolution_change(); test_keyframe_snapshot();
+  test_entry_cleanup();
   pthread_mutex_destroy(&g_bc.mtx);
-  puts("capture-loop timing, configuration, restart and cleanup passed");
+  puts("capture-loop timing, configuration, restart, keyframe snapshot and cleanup passed");
   return 0;
 }

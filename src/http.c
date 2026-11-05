@@ -3,6 +3,7 @@
 #include "log.h"
 #include "status.h"
 #include "settings.h"
+#include "snapshot.h"
 #include "gen/web_index.h"
 #include "gen/web_player.h"
 #include "gen/web_app.h"
@@ -54,17 +55,25 @@ write_all(int fd, const void *p, size_t n) {
   return 0;
 }
 
+/* `extra` holds complete additional header lines, each ending in CRLF. */
 static void
-send_bytes(int fd, const char *status, const char *ctype,
-           const void *body, size_t len) {
-  char hdr[512];
+send_response(int fd, const char *status, const char *ctype, const char *extra,
+              const void *body, size_t len) {
+  char hdr[1024];
   int n = snprintf(hdr, sizeof(hdr),
     "HTTP/1.1 %s\r\nContent-Type: %s\r\nConnection: close\r\n"
     "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"
-    "Access-Control-Allow-Origin: *\r\nContent-Length: %zu\r\n%s\r\n",
-    status, ctype, len, !strncmp(status, "405", 3) ? "Allow: GET\r\n" : "");
+    "Access-Control-Allow-Origin: *\r\nContent-Length: %zu\r\n%s%s\r\n",
+    status, ctype, len, !strncmp(status, "405", 3) ? "Allow: GET\r\n" : "",
+    extra ? extra : "");
   if (n > 0 && (size_t)n < sizeof(hdr) && write_all(fd, hdr, (size_t)n) == 0)
     write_all(fd, body, len);
+}
+
+static void
+send_bytes(int fd, const char *status, const char *ctype,
+           const void *body, size_t len) {
+  send_response(fd, status, ctype, NULL, body, len);
 }
 
 static void
@@ -118,6 +127,33 @@ serve_status(http_server *s, int fd) {
     return;
   }
   send_bytes(fd, "200 OK", "application/json", body, used + (size_t)n);
+}
+
+/* The newest keyframe as a standalone H.264 elementary stream. The capture
+ * hardware only emits encoded video, so the payload does not decode or
+ * re-encode images; see snapshot.h. */
+static void
+serve_frame(int fd) {
+  snapshot_frame *frame = snapshot_acquire(SNAPSHOT_FRESH_MS, SNAPSHOT_WAIT_MS);
+  if (!frame) {
+    send_simple(fd, "503 Service Unavailable", "No current video frame. Try again shortly.\n");
+    return;
+  }
+  uint64_t now = snapshot_now_ms();
+  char extra[512];
+  int n = snprintf(extra, sizeof(extra),
+    "Content-Disposition: inline; filename=\"frame.h264\"\r\n"
+    "X-Frame-Width: %d\r\nX-Frame-Height: %d\r\n"
+    "X-Frame-Timestamp-Ms: %u\r\nX-Frame-Age-Ms: %llu\r\n"
+    "Access-Control-Expose-Headers: X-Frame-Width, X-Frame-Height, "
+    "X-Frame-Timestamp-Ms, X-Frame-Age-Ms\r\n",
+    frame->width, frame->height, frame->stream_ts_ms,
+    (unsigned long long)(now - frame->captured_ms));
+  if (n < 0 || (size_t)n >= sizeof(extra))
+    send_simple(fd, "500 Internal Server Error", "Frame unavailable.\n");
+  else
+    send_response(fd, "200 OK", "video/h264", extra, frame->data, frame->len);
+  snapshot_release(frame);
 }
 
 static void
@@ -285,6 +321,8 @@ handle_request(http_server *s, int fd) {
     send_bytes(fd, "200 OK", "text/plain; charset=utf-8", web_flv_license, web_flv_license_len);
   } else if (!strcmp(path, "/live.flv")) {
     serve_flv(s, fd);
+  } else if (!strcmp(path, "/frame.h264")) {
+    serve_frame(fd);
   } else if (!strcmp(path, "/status")) {
     serve_status(s, fd);
   } else if (!strcmp(path, "/log")) {

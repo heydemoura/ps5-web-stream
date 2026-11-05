@@ -24,7 +24,8 @@ SRCDIR  := src
 GENDIR  := $(SRCDIR)/gen
 SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \
            $(SRCDIR)/http.c \
-           $(SRCDIR)/audio.c $(SRCDIR)/status.c $(SRCDIR)/settings.c
+           $(SRCDIR)/audio.c $(SRCDIR)/status.c $(SRCDIR)/settings.c \
+           $(SRCDIR)/snapshot.c
 GEN     := $(GENDIR)/web_index.h $(GENDIR)/web_player.h $(GENDIR)/web_app.h \
            $(GENDIR)/web_flv.h $(GENDIR)/web_flv_license.h \
            $(GENDIR)/web_videojs.h $(GENDIR)/web_videojs_license.h $(GENDIR)/web_player_css.h
@@ -93,12 +94,12 @@ host-test: $(GEN)
 	./build/test_avcap
 	$(HOST_CC) $(HOST_CFLAGS) tests/test_audio.c -o build/test_audio
 	./build/test_audio
-	$(HOST_CC) $(HOST_CFLAGS) tests/test_capture_loop.c src/flv.c src/settings.c -o build/test_capture_loop
+	$(HOST_CC) $(HOST_CFLAGS) tests/test_capture_loop.c src/flv.c src/settings.c src/snapshot.c -o build/test_capture_loop
 	./build/test_capture_loop
 	$(HOST_CC) $(HOST_CFLAGS) tests/test_transport.c src/flv.c -o build/test_transport
 	./build/test_transport
-	$(HOST_CC) $(HOST_CFLAGS) tests/http_fixture.c src/http.c src/flv.c src/status.c src/settings.c -o build/http_fixture
+	$(HOST_CC) $(HOST_CFLAGS) tests/http_fixture.c src/http.c src/flv.c src/status.c src/settings.c src/snapshot.c -o build/http_fixture
 	python3 tests/test_http.py build/http_fixture
 	node tests/test_preview.cjs
-	$(HOST_CC) $(HOST_CFLAGS) tests/transport_fixture_server.c src/flv.c src/http.c src/status.c src/settings.c -o build/transport_fixture
+	$(HOST_CC) $(HOST_CFLAGS) tests/transport_fixture_server.c src/flv.c src/http.c src/status.c src/settings.c src/snapshot.c -o build/transport_fixture
 	python3 tests/test_streaming.py build/transport_fixture

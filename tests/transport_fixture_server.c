@@ -3,6 +3,7 @@
 #include "http.h"
 #include "status.h"
 #include "settings.h"
+#include "snapshot.h"
 #include "log.h"
 #include <assert.h>
 #include <time.h>
@@ -15,6 +16,18 @@ pthread_mutex_t g_log_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 static uint32_t read24(const uint8_t *p) {
   return ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
+}
+/* Keep the newest keyframe for /frame.h264, as the payload capture loop does,
+ * using SPS/PPS from the stream's AVCDecoderConfigurationRecord. */
+static const uint8_t *sps, *pps;
+static size_t sps_len, pps_len;
+static void parse_avcc(const uint8_t *cfg, size_t len) {
+  assert(len >= 8 && cfg[0] == 1 && (cfg[5] & 31) == 1);
+  sps_len = ((size_t)cfg[6] << 8) | cfg[7]; sps = cfg + 8;
+  assert(8 + sps_len + 3 <= len && cfg[8 + sps_len] == 1);
+  pps_len = ((size_t)cfg[9 + sps_len] << 8) | cfg[10 + sps_len];
+  pps = cfg + 11 + sps_len;
+  assert(11 + sps_len + pps_len <= len);
 }
 static uint64_t now_ms(void) {
   struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -44,8 +57,10 @@ int main(int argc, char **argv) {
       uint32_t ts = read24(tag+4) | ((uint32_t)tag[7] << 24);
       last = ts;
       while (now_ms() < start + base + ts) usleep(1000);
-      if (tag[0] == 9 && len >= 5 && tag[12] == 0)
+      if (tag[0] == 9 && len >= 5 && tag[12] == 0) {
         broadcaster_set_avc_config(&b, tag+16, len-5);
+        parse_avcc(tag+16, len-5);
+      }
       else if (tag[0] == 8 && len >= 2 && tag[12] == 0)
         broadcaster_set_aac_config(&b, tag+13, len-2);
       else if (tag[0] == 9 || tag[0] == 8) {
@@ -53,6 +68,8 @@ int main(int argc, char **argv) {
         uint32_t stamp = base + ts;
         tag[4] = stamp >> 16; tag[5] = stamp >> 8; tag[6] = stamp; tag[7] = stamp >> 24;
         broadcaster_push(&b, tag, len+15, tag[0] == 9 && (tag[11] >> 4) == 1);
+        if (tag[0] == 9 && (tag[11] >> 4) == 1 && tag[12] == 1 && sps)
+          assert(!snapshot_store(sps, sps_len, pps, pps_len, tag+16, len-5, 320, 180, stamp));
         if (tag[0] == 9) stream_status_video(stamp);
         else stream_status_audio(stamp);
         stream_status_set("streaming", 0);

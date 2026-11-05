@@ -4,6 +4,7 @@
 #include "flv.h"
 #include "http.h"
 #include "settings.h"
+#include "snapshot.h"
 #include "status.h"
 #include "log.h"
 #include <errno.h>
@@ -59,6 +60,8 @@ static int capture_loop(uint64_t started, uint32_t revision) {
   while (!stopping) {
     if (!capture_settings_current(revision)) { result = 1; break; }
     int activity = 0;
+    /* A /frame.h264 reader wants a newer keyframe than the stored one. */
+    if (snapshot_take_keyframe_request()) avcap_request_keyframe();
     avcap_frame fr;
     int r = avcap_read_video(annexb, VIDBUF_SZ, &fr);
     if (r < 0) { result = r; LOG("main: video read failed 0x%x", r); break; }
@@ -116,6 +119,10 @@ static int capture_loop(uint64_t started, uint32_t revision) {
         size_t tl = flv_video_tag(&tag, avcc, n, key, 1, ts, (int)cts);
         if (!tl) { result = -1; break; }
         broadcaster_push(&g_bc, tag, tl, key); free(tag);
+        /* Only this thread writes the video parameters. */
+        if (key && snapshot_store(saved_sps, saved_sps_len, saved_pps, saved_pps_len,
+                                  avcc, n, g_bc.width, g_bc.height, ts))
+          LOG("main: keyframe snapshot unavailable");
         last_dts_us = fr.dts_us;
         if (next_epoch_ms <= full_ts) next_epoch_ms = full_ts + 1;
         last_video = now_ms();
@@ -208,6 +215,7 @@ int main(int argc, char **argv) {
     capture_settings_end(settings.revision);
     avcap_close();
     broadcaster_reset(&g_bc);
+    snapshot_clear();
     if (stopping) break;
     if (!capture_settings_current(settings.revision)) {
       broadcaster_disconnect_clients(&g_bc);
