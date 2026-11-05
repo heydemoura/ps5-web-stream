@@ -118,7 +118,10 @@ the player shows “live” only after playback advances.
 
 ## Build and deploy
 
-Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, and Python 3:
+Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, `nasm`, and
+Python 3. The first build downloads FFmpeg 7.1.5 from ffmpeg.org, verifies its
+pinned SHA-256, and builds a minimal static copy under `build/` (a few
+minutes; later builds reuse it):
 
 ```sh
 export PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk  # or ~/opt/ps5-payload-sdk
@@ -165,6 +168,7 @@ the workflow uses GitHub's provided token to upload release assets.
 | GET | `/player` | Fullscreen page with muted autoplay |
 | GET | `/live.flv` | Live H.264/AAC HTTP-FLV stream |
 | GET | `/frame.h264` | Latest captured frame as a standalone H.264 keyframe |
+| GET | `/frame.jpeg` | Latest captured frame as a downloadable JPEG |
 | GET | `/status` | Capture errors, counters, frame age and settings state |
 | GET | `/settings` | Requested/active resolution and revision state |
 | POST | `/settings` | Request a shared capture resolution |
@@ -187,8 +191,19 @@ sessions so viewers can reconnect when the source changes.
 
 ### Capture a frame
 
-In a browser, use the player's snapshot button. For scripts, `/frame.h264`
-returns a still frame from the live stream. The console's capture
+In a browser, use the player's snapshot button. For scripts, `/frame.jpeg`
+downloads the latest frame as a JPEG at the capture resolution:
+
+```sh
+curl -o frame.jpg http://192.168.0.190:8081/frame.jpeg
+```
+
+The payload decodes the keyframe in software with a statically linked FFmpeg
+(H.264 decoder and JPEG encoder only) and converts BT.709 limited-range video
+to the BT.601 full-range colour JPEG viewers expect. Each keyframe is converted
+at most once; repeated requests reuse the result.
+
+`/frame.h264` returns the same frame without conversion. The console's capture
 hardware only produces encoded video, so the frame is the newest H.264 keyframe
 (SPS, PPS and IDR) as a standalone Annex-B stream, at the capture resolution.
 The payload does not decode or re-encode it. Convert it to an image with any
@@ -210,7 +225,9 @@ starts, or while it restarts), the endpoint returns `503`.
 ## Tests
 
 Host tests need Clang with AddressSanitizer/UndefinedBehaviorSanitizer,
-Python 3, Node.js, and FFmpeg with `libx264` and AAC support:
+Python 3, Node.js, FFmpeg with `libx264` and AAC support, and the FFmpeg
+development libraries (`libavcodec-dev libswscale-dev libavutil-dev
+pkg-config` on Debian/Ubuntu):
 
 ```sh
 make test
@@ -246,7 +263,7 @@ exit. Commands, mode results and current limitations are in
 
 `src/main.c` manages capture; `avcap.*` and `audio.*` implement native
 media interfaces; `flv.*` muxes and broadcasts; `snapshot.*` keeps the latest
-keyframe; `http.*`, `settings.*` and `status.*` provide the web server and
+keyframe and `frame_jpeg.*` converts it to JPEG; `http.*`, `settings.*` and `status.*` provide the web server and
 controls. `web/` contains the dashboard,
 fullscreen player and embedded dependencies; `tests/` contains regressions,
 fixtures and console probes.
@@ -254,6 +271,9 @@ fixtures and console probes.
 For use on a console you own. No Sony code is included; firmware libraries are
 resolved at runtime. Project code is GPLv3+ (`LICENSE`). The vendored flv.js
 player is Apache-2.0; see its [license and provenance](web/vendor/README.md).
+The payload statically links [FFmpeg](https://ffmpeg.org) 7.1.5 libavcodec,
+libswscale and libavutil (LGPL-2.1+), built from the unmodified release with
+the configuration in the `Makefile`.
 
 [sdk]: https://github.com/ps5-payload-dev/sdk
 

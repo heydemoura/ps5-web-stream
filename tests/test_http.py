@@ -94,6 +94,8 @@ try:
     assert status == 503 and b"No current video frame" in body, (status, body)
     assert time.monotonic() - started < 3
     assert request("/frame.h264", "POST")[0] == 405
+    status, _, body = request("/frame.jpeg")
+    assert status == 503 and b"No current video frame" in body, (status, body)
     status, _, body = request("/log")
     assert status == 200 and b"http fixture ready" in body
     for path in ("/indexgarbage", "/live.flvgarbage", "/status/x", "/../status"):

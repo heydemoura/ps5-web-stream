@@ -9,6 +9,6 @@ jobs:
         with:
           node-version: '22'
       - name: Install test tools
-        run: sudo apt-get update && sudo apt-get install -y clang ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y clang ffmpeg libavcodec-dev libswscale-dev libavutil-dev pkg-config
       - name: Run sanitizer and media integration tests
         run: make test

@@ -34,6 +34,8 @@ typedef struct snapshot_frame {
   uint64_t captured_ms;    /* CLOCK_MONOTONIC milliseconds at store time */
   uint64_t seq;
   unsigned refs;           /* guarded by the snapshot lock */
+  uint8_t *jpeg;           /* lazily filled by frame_jpeg_prepare(), then immutable */
+  size_t   jpeg_len;
   size_t   len;
   uint8_t  data[];         /* Annex-B: SPS, PPS, IDR slice NAL units */
 } snapshot_frame;
