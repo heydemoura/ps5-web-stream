@@ -67,3 +67,15 @@ size_t capture_settings_json(char *out, size_t cap) {
   pthread_mutex_unlock(&lock);
   return n < 0 || (size_t)n >= cap ? 0 : (size_t)n;
 }
+int capture_settings_index(void) {
+  int index = 0;
+  pthread_mutex_lock(&lock);
+  for (size_t i = 0; i < sizeof(presets)/sizeof(presets[0]); i++)
+    if (!strcmp(requested.resolution, presets[i].resolution)) index = (int)i;
+  pthread_mutex_unlock(&lock);
+  return index;
+}
+const char *capture_settings_name(int index) {
+  if (index < 0 || (size_t)index >= sizeof(presets)/sizeof(presets[0])) return NULL;
+  return presets[index].resolution;
+}

@@ -25,7 +25,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 lld-18 llvm-18 make python3 unzip wget
+          sudo apt-get install -y clang-18 lld-18 llvm-18 make nasm python3 unzip wget
 
       - name: Install PS5 payload SDK
         env:

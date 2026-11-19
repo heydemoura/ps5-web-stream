@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <signal.h>
+#include "control.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,10 @@ static broadcaster g_bc;
 static volatile sig_atomic_t stopping;
 static uint64_t next_epoch_ms;
 static void on_signal(int sig) { (void)sig; stopping = 1; }
+/* Supervision (see control.h): a supervised service asks for a fresh process
+ * after this many consecutive OpenVideo failures. */
+#define OPEN_FAILURES_BEFORE_RESTART 2
+static int supervised;
 static uint64_t now_ms(void) {
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC, &t);
@@ -57,8 +62,13 @@ static int capture_loop(uint64_t started, uint32_t revision) {
   uint64_t last_dts_us = 0, last_audio_us = 0;
   stream_status_set("waiting", 0);
   uint64_t last_video = now_ms(), last_audio = last_video;
+  uint64_t parent_checked = last_video;
   while (!stopping) {
     if (!capture_settings_current(revision)) { result = 1; break; }
+    if (supervised && now_ms() - parent_checked >= 1000) {
+      parent_checked = now_ms();
+      if (!control_alive()) { LOG("main: supervisor gone; exiting"); stopping = 1; break; }
+    }
     int activity = 0;
     /* A /frame.h264 reader wants a newer keyframe than the stored one. */
     if (snapshot_take_keyframe_request()) avcap_request_keyframe();
@@ -177,17 +187,18 @@ static int parse_port(const char *s, int *port) {
   if (errno || end == s || *end || n < 1 || n > 65535) return -1;
   *port = (int)n; return 0;
 }
-int main(int argc, char **argv) {
-  int http_port = DEF_HTTP_PORT;
-  int ports = 0;
-  for (int i = 1; i < argc; i++) {
-    if (ports++ || parse_port(argv[i], &http_port)) {
-      fprintf(stderr, "Usage: %s [http_port]\n", argv[0]); return 1;
-    }
-  }
-  signal(SIGPIPE, SIG_IGN); signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
-  setvbuf(stdout, NULL, _IONBF, 0);
+/* The capture service: HTTP server plus the capture/retry loop. Returns 0
+ * on a stop signal or after handing over to a fresh process, 1 on listener
+ * failure. */
+static int service_main(int http_port) {
   LOG("PS5 Web Stream %s: PID %d HTTP %d", PS5HS_VERSION, (int)getpid(), http_port);
+  control_hello hello;
+  supervised = !control_connect(http_port, &hello);
+  if (supervised) {
+    LOG("main: supervised; capture process #%u", hello.generation);
+    if (capture_settings_name(hello.preset))
+      capture_settings_request(capture_settings_name(hello.preset));
+  }
   broadcaster_init(&g_bc);
   /* FLV's track flags are fixed for the lifetime of an HTTP connection. */
   g_bc.have_audio = 1;
@@ -195,7 +206,7 @@ int main(int argc, char **argv) {
     LOG("main: listener startup failed; exiting"); return 1;
   }
   uint64_t started = now_ms();
-  int initialized = 0;
+  int initialized = 0, opened = 0, open_failures = 0, result = 0;
   while (!stopping) {
     stream_status_set("opening", 0);
     capture_settings settings;
@@ -210,7 +221,12 @@ int main(int argc, char **argv) {
       if (!r) r = avcap_init();
       if (!r) initialized = 1;
     }
-    if (!r) r = avcap_open(&cfg);
+    int open_failed = 0;
+    if (!r) {
+      r = avcap_open(&cfg);
+      open_failed = r != 0;
+      if (!r) { opened = 1; open_failures = 0; }
+    }
     if (!r) r = capture_loop(started, settings.revision);
     capture_settings_end(settings.revision);
     avcap_close();
@@ -221,11 +237,42 @@ int main(int argc, char **argv) {
       broadcaster_disconnect_clients(&g_bc);
       continue;
     }
-    LOG("main: capture unavailable (0x%x); retrying in 5s", r);
     stream_status_set("error", r);
-    for (int i=0; i<50 && !stopping && capture_settings_current(settings.revision); i++)
+    /* After a native session error (0x81950009 when a game changes the
+     * video-out mode) OpenVideo can fail with 0x81950008/0x81950001 for the
+     * rest of this process, even across Terminate/Initialize and module
+     * reloads, while a new process opens at once. So once a process that
+     * has captured before keeps failing to open, hand over to a fresh one.
+     * A fresh process that cannot open yet just keeps retrying. */
+    if (open_failed && opened && supervised &&
+        ++open_failures >= OPEN_FAILURES_BEFORE_RESTART) {
+      LOG("main: OpenVideo keeps failing (0x%x); asking for a fresh capture process", r);
+      if (!control_request_restart(capture_settings_index())) break;
+      LOG("main: restart request failed; retrying in this process");
+      supervised = 0;
+    }
+    LOG("main: capture unavailable (0x%x); retrying in 5s", r);
+    for (int i=0; i<50 && !stopping && capture_settings_current(settings.revision); i++) {
       usleep(100000);
+      if (supervised && !control_alive()) {
+        LOG("main: supervisor gone; exiting"); stopping = 1;
+      }
+    }
   }
   avcap_terminate();
-  return 0;
+  return result;
+}
+
+int main(int argc, char **argv) {
+  int http_port = DEF_HTTP_PORT;
+  int ports = 0;
+  for (int i = 1; i < argc; i++) {
+    if (ports++ || parse_port(argv[i], &http_port)) {
+      fprintf(stderr, "Usage: %s [http_port]\n", argv[0]); return 1;
+    }
+  }
+  signal(SIGPIPE, SIG_IGN);
+  signal(SIGINT, on_signal); signal(SIGTERM, on_signal);
+  setvbuf(stdout, NULL, _IONBF, 0);
+  return service_main(http_port);
 }

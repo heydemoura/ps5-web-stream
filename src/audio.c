@@ -92,8 +92,8 @@ audio_capture *audio_capture_open(int resource_id) {
 void audio_capture_close(audio_capture *s) {
   if (!s) return;
   if (s->handle) {
-    s->stop(s->handle);
-    s->close(s->handle);
+    int stopped = s->stop(s->handle);
+    LOG("audio: Stop -> 0x%x, Close -> 0x%x", stopped, s->close(s->handle));
   }
   if (s->lib) dlclose(s->lib);
   if (s->kernel) dlclose(s->kernel);

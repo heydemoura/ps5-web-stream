@@ -19,7 +19,7 @@ uint64_t snapshot_now_ms(void) {
 
 /* Caller holds the lock. */
 static void unref(snapshot_frame *frame) {
-  if (frame && !--frame->refs) free(frame);
+  if (frame && !--frame->refs) { free(frame->jpeg); free(frame); }
 }
 
 static const uint8_t start_code[4] = {0, 0, 0, 1};
@@ -64,6 +64,7 @@ int snapshot_store(const uint8_t *sps, size_t sps_len,
   frame->stream_ts_ms = stream_ts_ms;
   frame->captured_ms = snapshot_now_ms();
   frame->refs = 1;
+  frame->jpeg = NULL; frame->jpeg_len = 0;
   pthread_mutex_lock(&lock);
   frame->seq = next_seq++;
   snapshot_frame *old = latest;

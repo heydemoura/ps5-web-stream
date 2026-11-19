@@ -68,7 +68,10 @@ changes the stream seen by other viewers. OBS browser audio is controlled by
 
 
 Both `/` and `/player` use Video.js 10 with controls inside the video: play/pause,
-mute, volume, reconnect, picture-in-picture and fullscreen. Open **Settings**
+mute, volume, snapshot, reconnect, picture-in-picture and fullscreen. The
+snapshot button (📷) downloads the frame currently on screen as a
+full-resolution JPEG; it is captured in the browser, so it needs no extra
+request to the console. Open **Settings**
 inside the player to choose a resolution, select **Apply resolution**, or Stop
 the stream. The dashboard at `/` also shows capture diagnostics. This changes the
 console capture for **all viewers**; connected players reconnect automatically.
@@ -115,7 +118,10 @@ the player shows “live” only after playback advances.
 
 ## Build and deploy
 
-Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, and Python 3:
+Install the [ps5-payload-dev SDK][sdk], a recent LLVM, `make`, `nasm`, and
+Python 3. The first build downloads FFmpeg 7.1.5 from ffmpeg.org, verifies its
+pinned SHA-256, and builds a minimal static copy under `build/` (a few
+minutes; later builds reuse it):
 
 ```sh
 export PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk  # or ~/opt/ps5-payload-sdk
@@ -123,7 +129,13 @@ export LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config  # macOS
 make HTTP_PORT=8081
 ```
 
-This builds `ps5-web-stream.elf`. Omit `HTTP_PORT` to use `8080`. Web assets are
+This builds `ps5-web-stream.elf`. Omit `HTTP_PORT` to use `8080`.
+
+`ps5-web-stream.elf` is a small supervisor that embeds the capture service
+(`build/ps5-web-stream-service.elf`). It launches the service through the ELF
+loader on `127.0.0.1:9021`, and launches a fresh service when capture gets stuck
+(see [Automatic recovery](#automatic-recovery)). Killing either process stops
+both. The service ELF can be deployed on its own, without automatic recovery. Web assets are
 embedded by `tools/embed.py`; `xxd` is not required.
 
 Stop an existing capture copy, then send the compiled ELF unchanged to a running
@@ -147,6 +159,19 @@ between 1 and 65535. Native capture open negotiates its capture tap; no separate
 scan-in helper or manual tap setup is required. See
 [capture API notes](docs/AVCAP2.md).
 
+## Automatic recovery
+
+When a game starts or exits, the console's video-out mode changes and the
+native session fails (`0x81950009`). From then on, every `OpenVideo` in that
+process can fail with `0x81950008`/`0x81950001`, even after Terminate/Initialize,
+ResourceArbitrator re-registration and module reloads. A newly started process
+opens immediately, even in-game. So after two failed opens in a process that has
+captured before, the service asks the supervisor for a fresh process and exits.
+The supervisor relaunches it with the same resolution, on the same port.
+Playback stops for about 10 seconds and players reconnect by themselves. The
+supervisor listens on `127.0.0.1:(HTTP port + 1000)`. A fresh process that
+cannot open yet keeps retrying in place, so restarts cannot loop.
+
 ## GitHub releases
 
 Publishing a GitHub release triggers [the release workflow](.github/workflows/release.yml).
@@ -162,6 +187,7 @@ the workflow uses GitHub's provided token to upload release assets.
 | GET | `/player` | Fullscreen page with muted autoplay |
 | GET | `/live.flv` | Live H.264/AAC HTTP-FLV stream |
 | GET | `/frame.h264` | Latest captured frame as a standalone H.264 keyframe |
+| GET | `/frame.jpeg` | Latest captured frame as a downloadable JPEG |
 | GET | `/status` | Capture errors, counters, frame age and settings state |
 | GET | `/settings` | Requested/active resolution and revision state |
 | POST | `/settings` | Request a shared capture resolution |
@@ -184,7 +210,19 @@ sessions so viewers can reconnect when the source changes.
 
 ### Capture a frame
 
-`/frame.h264` returns a still frame from the live stream. The console's capture
+In a browser, use the player's snapshot button. For scripts, `/frame.jpeg`
+downloads the latest frame as a JPEG at the capture resolution:
+
+```sh
+curl -o frame.jpg http://192.168.0.190:8081/frame.jpeg
+```
+
+The payload decodes the keyframe in software with a statically linked FFmpeg
+(H.264 decoder and JPEG encoder only) and converts BT.709 limited-range video
+to the BT.601 full-range colour JPEG viewers expect. Each keyframe is converted
+at most once; repeated requests reuse the result.
+
+`/frame.h264` returns the same frame without conversion. The console's capture
 hardware only produces encoded video, so the frame is the newest H.264 keyframe
 (SPS, PPS and IDR) as a standalone Annex-B stream, at the capture resolution.
 The payload does not decode or re-encode it. Convert it to an image with any
@@ -206,7 +244,9 @@ starts, or while it restarts), the endpoint returns `503`.
 ## Tests
 
 Host tests need Clang with AddressSanitizer/UndefinedBehaviorSanitizer,
-Python 3, Node.js, and FFmpeg with `libx264` and AAC support:
+Python 3, Node.js, FFmpeg with `libx264` and AAC support, and the FFmpeg
+development libraries (`libavcodec-dev libswscale-dev libavutil-dev
+pkg-config` on Debian/Ubuntu):
 
 ```sh
 make test
@@ -232,7 +272,9 @@ exit. Commands, mode results and current limitations are in
   viewer, plus the tag currently being sent. HTTP headers are limited to 8 KiB
   with a five-second request deadline; stalled/disconnected clients are released.
 - Resolution changes and capture recovery briefly interrupt playback. Settings
-  are shared by viewers and reset to 1080p when the payload restarts.
+  are shared by viewers and survive automatic recovery, but reset to 1080p when
+  the payload is redeployed.
+- Automatic recovery needs the ELF loader listening on port 9021.
 - Cold-boot behavior, other firmware versions, HDR and multi-hour operation
   remain untested.
 - Perceptual A/V offset and glass-to-glass latency have not been measured.
@@ -240,9 +282,10 @@ exit. Commands, mode results and current limitations are in
 
 ## Layout and license
 
-`src/main.c` manages capture; `avcap.*` and `audio.*` implement native
+`src/main.c` manages capture; `supervisor.c` and `control.*` relaunch it in a
+fresh process when it gets stuck; `avcap.*` and `audio.*` implement native
 media interfaces; `flv.*` muxes and broadcasts; `snapshot.*` keeps the latest
-keyframe; `http.*`, `settings.*` and `status.*` provide the web server and
+keyframe and `frame_jpeg.*` converts it to JPEG; `http.*`, `settings.*` and `status.*` provide the web server and
 controls. `web/` contains the dashboard,
 fullscreen player and embedded dependencies; `tests/` contains regressions,
 fixtures and console probes.
@@ -250,6 +293,9 @@ fixtures and console probes.
 For use on a console you own. No Sony code is included; firmware libraries are
 resolved at runtime. Project code is GPLv3+ (`LICENSE`). The vendored flv.js
 player is Apache-2.0; see its [license and provenance](web/vendor/README.md).
+The payload statically links [FFmpeg](https://ffmpeg.org) 7.1.5 libavcodec,
+libswscale and libavutil (LGPL-2.1+), built from the unmodified release with
+the configuration in the `Makefile`.
 
 [sdk]: https://github.com/ps5-payload-dev/sdk
 

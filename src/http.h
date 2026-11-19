@@ -5,6 +5,7 @@
  *   GET /player     -> viewport-filling autoplay player
  *   GET /live.flv   -> HTTP-FLV media for both browser pages
  *   GET /frame.h264 -> newest keyframe as a standalone H.264 stream
+ *   GET /frame.jpeg -> the same keyframe decoded and downloaded as JPEG
  *   GET /settings   -> requested and active capture configuration
  *   POST /settings  -> resolution=4k|1440p|1080p|720p (form encoded)
  *   GET /status     -> JSON status

@@ -18,4 +18,8 @@ void capture_settings_begin(const capture_settings *settings);
 void capture_settings_ready(uint32_t revision);
 void capture_settings_end(uint32_t revision);
 size_t capture_settings_json(char *out, size_t cap);
+/* Preset index of the requested resolution (0..3), and a preset's name or
+ * NULL; used to carry the choice into a restarted capture process. */
+int capture_settings_index(void);
+const char *capture_settings_name(int index);
 #endif

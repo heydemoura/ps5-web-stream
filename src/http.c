@@ -4,6 +4,7 @@
 #include "status.h"
 #include "settings.h"
 #include "snapshot.h"
+#include "frame_jpeg.h"
 #include "gen/web_index.h"
 #include "gen/web_player.h"
 #include "gen/web_app.h"
@@ -129,28 +130,35 @@ serve_status(http_server *s, int fd) {
   send_bytes(fd, "200 OK", "application/json", body, used + (size_t)n);
 }
 
-/* The newest keyframe as a standalone H.264 elementary stream. The capture
- * hardware only emits encoded video, so the payload does not decode or
- * re-encode images; see snapshot.h. */
+/* The newest keyframe, either as a standalone H.264 elementary stream or
+ * decoded and re-encoded as a JPEG download; see snapshot.h / frame_jpeg.h. */
 static void
-serve_frame(int fd) {
+serve_frame(int fd, int jpeg) {
   snapshot_frame *frame = snapshot_acquire(SNAPSHOT_FRESH_MS, SNAPSHOT_WAIT_MS);
   if (!frame) {
     send_simple(fd, "503 Service Unavailable", "No current video frame. Try again shortly.\n");
     return;
   }
+  if (jpeg && frame_jpeg_prepare(frame)) {
+    snapshot_release(frame);
+    send_simple(fd, "500 Internal Server Error", "Could not convert the frame to JPEG.\n");
+    return;
+  }
   uint64_t now = snapshot_now_ms();
   char extra[512];
   int n = snprintf(extra, sizeof(extra),
-    "Content-Disposition: inline; filename=\"frame.h264\"\r\n"
+    "Content-Disposition: %s\r\n"
     "X-Frame-Width: %d\r\nX-Frame-Height: %d\r\n"
     "X-Frame-Timestamp-Ms: %u\r\nX-Frame-Age-Ms: %llu\r\n"
     "Access-Control-Expose-Headers: X-Frame-Width, X-Frame-Height, "
     "X-Frame-Timestamp-Ms, X-Frame-Age-Ms\r\n",
+    jpeg ? "attachment; filename=\"ps5-frame.jpg\"" : "inline; filename=\"frame.h264\"",
     frame->width, frame->height, frame->stream_ts_ms,
     (unsigned long long)(now - frame->captured_ms));
   if (n < 0 || (size_t)n >= sizeof(extra))
     send_simple(fd, "500 Internal Server Error", "Frame unavailable.\n");
+  else if (jpeg)
+    send_response(fd, "200 OK", "image/jpeg", extra, frame->jpeg, frame->jpeg_len);
   else
     send_response(fd, "200 OK", "video/h264", extra, frame->data, frame->len);
   snapshot_release(frame);
@@ -322,7 +330,9 @@ handle_request(http_server *s, int fd) {
   } else if (!strcmp(path, "/live.flv")) {
     serve_flv(s, fd);
   } else if (!strcmp(path, "/frame.h264")) {
-    serve_frame(fd);
+    serve_frame(fd, 0);
+  } else if (!strcmp(path, "/frame.jpeg")) {
+    serve_frame(fd, 1);
   } else if (!strcmp(path, "/status")) {
     serve_status(s, fd);
   } else if (!strcmp(path, "/log")) {

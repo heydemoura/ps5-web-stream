@@ -44,6 +44,27 @@ function harness({fullscreen = false, initial = streaming(), blocked = false, qu
   let offline = false, support = true, playBlocked = blocked, playCalls = 0;
   let postHandler = () => response({requested_resolution:node('resolution').value}, 202);
   const timers = new Map(), players = [], requests = [], windowListeners = {};
+  const created = [], blobs = [], revoked = [];
+  const FakeDate = class extends Date { static now() { return now; } };
+  const FakeURL = class extends URL {
+    static createObjectURL(blob) { blobs.push(blob); return 'blob:snapshot-' + blobs.length; }
+    static revokeObjectURL(url) { revoked.push(url); }
+  };
+  function createElement(tag) {
+    const element = {tag, removed:false, clicks:0, remove() { this.removed = true; },
+      click() { this.clicks++; }};
+    if (tag === 'canvas') {
+      element.drawn = null;
+      element.getContext = kind => (assert.equal(kind, '2d'),
+        {drawImage(source, x, y, w, h) { element.drawn = {source, x, y, w, h}; }});
+      element.toBlob = (callback, type, quality) => {
+        element.encoded = {type, quality};
+        callback({type, size:1234});
+      };
+    }
+    created.push(element);
+    return element;
+  }
   const video = node('v');
   Object.assign(video, {paused:true, currentTime:0, muted:false, readyState:0,
     buffered:{length:0}, play() {
@@ -61,10 +82,11 @@ function harness({fullscreen = false, initial = streaming(), blocked = false, qu
       return player;
     }};
   const context = {
-    document:{body:{dataset:fullscreen ? {player:'fullscreen'} : {}}, getElementById:node},
+    document:{body:{dataset:fullscreen ? {player:'fullscreen'} : {},
+      appendChild(element) { element.attached = true; }}, getElementById:node, createElement},
     location:{href:'http://192.168.0.190:8081/' + (fullscreen ? 'player' : '') + query, hostname:'192.168.0.190'},
     window:{flvjs, addEventListener(event, callback) { windowListeners[event] = callback; }}, flvjs,
-    URL, AbortController, Date:{now:() => now},
+    URL:FakeURL, AbortController, Date:FakeDate,
     setTimeout(callback, ms) { const id = ++clockID; timers.set(id, {callback,ms,due:now+ms}); return id; },
     clearTimeout(id) { timers.delete(id); },
     async fetch(path, options = {}) {
@@ -83,7 +105,7 @@ function harness({fullscreen = false, initial = streaming(), blocked = false, qu
   };
   vm.runInNewContext(code, context);
   return {
-    node, video, players, requests, timers,
+    node, video, players, requests, timers, created, blobs, revoked,
     get playCalls() { return playCalls; },
     status(value) { current = {...current, ...value}; },
     offline(value) { offline = value; },
@@ -325,6 +347,36 @@ test('stream completion and errors reconnect with backoff; old callbacks cannot 
   await h.poll(); assert.equal(h.players.length, 2, 'Retry must respect backoff');
   h.advance(3000); await h.poll(); assert.equal(h.players.length, 3);
   h.close();
+});
+
+test('snapshot button saves the displayed frame as a full-resolution JPEG', async () => {
+  for (const fullscreen of [false, true]) {
+    const h = harness({fullscreen}); await settle();
+    const button = h.node('snapshot');
+    assert(button, 'Both pages offer a snapshot control');
+    assert.equal(button.disabled, true, 'No decoded frame yet');
+    button.onclick(); assert.equal(h.created.length, 0);
+    Object.assign(h.video, {videoWidth:3840, videoHeight:2160});
+    h.progress();
+    assert.equal(button.disabled, false);
+    h.advance(Date.UTC(2026, 10, 5, 12, 0, 0) - 1000);
+    button.onclick();
+    const [canvas, link] = h.created;
+    assert.equal(canvas.tag, 'canvas');
+    assert.equal(canvas.width, 3840); assert.equal(canvas.height, 2160);
+    assert.deepEqual({...canvas.drawn, source:canvas.drawn.source === h.video},
+      {source:true, x:0, y:0, w:3840, h:2160});
+    assert.deepEqual(canvas.encoded, {type:'image/jpeg', quality:0.92});
+    assert.equal(link.tag, 'a'); assert.equal(link.href, 'blob:snapshot-1');
+    assert.match(link.download, /^ps5-snapshot-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.jpg$/);
+    assert(link.attached && link.clicks === 1 && link.removed);
+    await h.fireTimeout(10000);
+    assert.deepEqual(h.revoked, ['blob:snapshot-1']);
+    // A torn-down player has no frame to save.
+    h.status({video_age_ms:3000}); await h.poll();
+    assert.equal(button.disabled, true);
+    h.close();
+  }
 });
 
 (async () => {

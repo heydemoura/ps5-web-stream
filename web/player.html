@@ -29,6 +29,7 @@ if (['0', 'false'].includes(new URL(location.href).searchParams.get('controls'))
         <button id="play" type="button" title="Stop streaming">Stop</button>
       </form>
     </details>
+    <button id="snapshot" title="Save snapshot (JPEG)" disabled>📷<span class="sr-only"> Save snapshot</span></button>
     <button id="reload" title="Reconnect to live stream">↻<span class="sr-only"> Reconnect</span></button>
     <media-pip-button title="Picture in picture"><span aria-hidden="true">▣</span></media-pip-button>
     <media-fullscreen-button title="Fullscreen"><span aria-hidden="true">⛶</span></media-fullscreen-button>
