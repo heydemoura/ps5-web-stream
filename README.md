@@ -129,7 +129,13 @@ export LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config  # macOS
 make HTTP_PORT=8081
 ```
 
-This builds `ps5-web-stream.elf`. Omit `HTTP_PORT` to use `8080`. Web assets are
+This builds `ps5-web-stream.elf`. Omit `HTTP_PORT` to use `8080`.
+
+`ps5-web-stream.elf` is a small supervisor that embeds the capture service
+(`build/ps5-web-stream-service.elf`). It launches the service through the ELF
+loader on `127.0.0.1:9021`, and launches a fresh service when capture gets stuck
+(see [Automatic recovery](#automatic-recovery)). Killing either process stops
+both. The service ELF can be deployed on its own, without automatic recovery. Web assets are
 embedded by `tools/embed.py`; `xxd` is not required.
 
 Stop an existing capture copy, then send the compiled ELF unchanged to a running
@@ -152,6 +158,19 @@ A loader supporting arguments can pass `[http_port]`; the HTTP port must be
 between 1 and 65535. Native capture open negotiates its capture tap; no separate
 scan-in helper or manual tap setup is required. See
 [capture API notes](docs/AVCAP2.md).
+
+## Automatic recovery
+
+When a game starts or exits, the console's video-out mode changes and the
+native session fails (`0x81950009`). From then on, every `OpenVideo` in that
+process can fail with `0x81950008`/`0x81950001`, even after Terminate/Initialize,
+ResourceArbitrator re-registration and module reloads. A newly started process
+opens immediately, even in-game. So after two failed opens in a process that has
+captured before, the service asks the supervisor for a fresh process and exits.
+The supervisor relaunches it with the same resolution, on the same port.
+Playback stops for about 10 seconds and players reconnect by themselves. The
+supervisor listens on `127.0.0.1:(HTTP port + 1000)`. A fresh process that
+cannot open yet keeps retrying in place, so restarts cannot loop.
 
 ## GitHub releases
 
@@ -253,7 +272,9 @@ exit. Commands, mode results and current limitations are in
   viewer, plus the tag currently being sent. HTTP headers are limited to 8 KiB
   with a five-second request deadline; stalled/disconnected clients are released.
 - Resolution changes and capture recovery briefly interrupt playback. Settings
-  are shared by viewers and reset to 1080p when the payload restarts.
+  are shared by viewers and survive automatic recovery, but reset to 1080p when
+  the payload is redeployed.
+- Automatic recovery needs the ELF loader listening on port 9021.
 - Cold-boot behavior, other firmware versions, HDR and multi-hour operation
   remain untested.
 - Perceptual A/V offset and glass-to-glass latency have not been measured.
@@ -261,7 +282,8 @@ exit. Commands, mode results and current limitations are in
 
 ## Layout and license
 
-`src/main.c` manages capture; `avcap.*` and `audio.*` implement native
+`src/main.c` manages capture; `supervisor.c` and `control.*` relaunch it in a
+fresh process when it gets stuck; `avcap.*` and `audio.*` implement native
 media interfaces; `flv.*` muxes and broadcasts; `snapshot.*` keeps the latest
 keyframe and `frame_jpeg.*` converts it to JPEG; `http.*`, `settings.*` and `status.*` provide the web server and
 controls. `web/` contains the dashboard,

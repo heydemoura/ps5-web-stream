@@ -36,6 +36,9 @@ static struct audio_capture mock_capture;
 static struct audio_encoder mock_encoder;
 static int opened_audio, closed_audio, opened_encoder, closed_encoder;
 static int audio_open_fails, video_closes, terminations, init_count, key_requests;
+/* avcap_open results by call (0 = success); after the script, stop. */
+static int open_script[8], open_script_len, open_calls;
+static int supervised_stub, alive_stub = 1, restart_requests, restart_preset_sent = -2;
 
 static const uint8_t sps_data[] = {0,0,0,1,0x67,0x64,0,0x28,0xaa};
 static const uint8_t pps_data[] = {0,0,1,0x68,0xee};
@@ -51,6 +54,7 @@ typedef struct {
   uint64_t audio_pts[4];
   uint64_t advance;
   int stop;
+  int fail; /* native read error to return */
   const char *resolution;
 } source_step;
 static source_step steps[16];
@@ -86,7 +90,19 @@ void stream_status_audio(uint32_t ts) { (void)ts; audio_status_count++; }
 
 int avcap_load(void) { return 0; }
 int avcap_init(void) { init_count++; return 0; }
-int avcap_open(const avcap_config *cfg) { assert(cfg->fps == 60); return 0; }
+int avcap_open(const avcap_config *cfg) {
+  assert(cfg->fps == 60);
+  if (!open_script_len) return 0;
+  if (open_calls >= open_script_len) { on_signal(SIGTERM); return (int)0x81950008; }
+  return open_script[open_calls++];
+}
+int control_connect(int http_port, control_hello *hello) {
+  assert(http_port == 18080);
+  if (!supervised_stub) return -1;
+  hello->generation = 2; hello->preset = 3; return 0;
+}
+int control_alive(void) { return alive_stub; }
+int control_request_restart(int preset) { restart_requests++; restart_preset_sent = preset; return 0; }
 int avcap_resource_id(void) { return 0xb6; }
 int avcap_request_keyframe(void) { key_requests++; return 0; }
 void avcap_close(void) { video_closes++; }
@@ -96,6 +112,7 @@ int avcap_read_video(uint8_t *buf, size_t size, avcap_frame *fr) {
   current = &steps[step_index++]; audio_index = 0;
   fake_now += current->advance;
   if (current->stop) on_signal(SIGTERM);
+  if (current->fail) return current->fail;
   if (current->resolution) assert(capture_settings_request(current->resolution) >= 0);
   if (!current->len) return 0;
   assert(size >= current->len); memcpy(buf, current->data, current->len);
@@ -286,12 +303,48 @@ static void test_entry_cleanup(void) {
   assert(!snapshot_acquire(60000, 0));
   snapshot_take_keyframe_request();
 }
+/* A process that captured once and then keeps failing OpenVideo (the
+ * firmware's per-process stuck state) asks its supervisor for a fresh
+ * process, carrying the requested resolution, instead of retrying forever. */
+static int run_entry(void) {
+  pthread_mutex_destroy(&g_bc.mtx);
+  char *args[] = {"payload", "18080", NULL};
+  return payload_entry(2, args);
+}
+static void test_supervised_restart(void) {
+  reset_test();
+  steps[step_count++] = (source_step){.fail = (int)0x81950009};
+  open_script[0] = 0; open_script[1] = (int)0x81950008; open_script[2] = (int)0x81950001;
+  open_script_len = 3; open_calls = 0;
+  supervised_stub = 1; restart_requests = 0;
+  assert(run_entry() == 0);
+  assert(open_calls == 3 && restart_requests == 1);
+  assert(restart_preset_sent == 3); /* hello preset 3 (720p) was applied and is carried on */
+  assert(!stopping);
+  /* Unsupervised, the same failures just keep retrying. */
+  reset_test();
+  steps[step_count++] = (source_step){.fail = (int)0x81950009};
+  open_calls = 0; supervised_stub = 0; restart_requests = 0;
+  assert(run_entry() == 0 && open_calls == 3 && restart_requests == 0 && stopping);
+  /* A fresh process that never opened does not ask again (no restart loop). */
+  reset_test();
+  open_script[0] = open_script[1] = open_script[2] = (int)0x81950008;
+  open_calls = 0; supervised_stub = 1;
+  assert(run_entry() == 0 && open_calls == 3 && restart_requests == 0);
+  /* A vanished supervisor stops the service. */
+  reset_test();
+  open_script[0] = open_script[1] = open_script[2] = (int)0x81950008;
+  open_calls = 0; alive_stub = 0;
+  assert(run_entry() == 0 && open_calls == 1 && stopping);
+  alive_stub = 1; supervised_stub = 0; open_script_len = 0;
+  snapshot_take_keyframe_request();
+}
 int main(void) {
   broadcaster_init(&g_bc); g_bc.have_audio = 1;
   test_shared_clock_and_restart(); test_config_change(); test_regressions_and_stalls();
   test_failures_and_signal(); test_resolution_change(); test_keyframe_snapshot();
-  test_entry_cleanup();
+  test_entry_cleanup(); test_supervised_restart();
   pthread_mutex_destroy(&g_bc.mtx);
-  puts("capture-loop timing, configuration, restart, keyframe snapshot and cleanup passed");
+  puts("capture-loop timing, configuration, restart, keyframe snapshot, cleanup and supervised restart passed");
   return 0;
 }

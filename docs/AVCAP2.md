@@ -236,6 +236,19 @@ returned its resource state to STOP, waited five seconds, reopened successfully,
 and resumed both tracks. The native error's cause is unknown; this observed
 recovery was not a deliberately injected fault.
 
+Later runs (2026-11-19) reproduce `0x81950009` on demand: starting or quitting
+a game changes the video-out mode (`0x13c` home, `0x16c` in the tested game)
+under an open session. Reopening in the same process then often fails for good,
+alternating `OpenVideo` `0x81950008` and `0x81950001` (once for 239 attempts).
+`sceAvcap2Terminate`/`Initialize`, clearing and re-registering the
+ResourceArbitrator callbacks, and `dlclose`/`dlopen` of Avcap2, Ipmi and
+ResourceArbitrator (only the first unload succeeds; later ones return -1) did
+not reliably clear it. A newly started payload process opens straight away in
+the same game, so the state is per process. A forked child cannot load system
+modules (`dlopen libSceIpmi.sprx` fails), so the payload instead relaunches the
+service ELF through the ELF loader (see the README, Automatic recovery). Across
+6 game starts and exits, capture came back each time after 10–11 seconds.
+
 ## Audio
 
 `audio.c` opens stereo interleaved float PCM at 48 kHz from Avcap2 using the

@@ -20,12 +20,16 @@ include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
 endif
 
 ELF     := ps5-web-stream.elf
+# The deployed ELF is the supervisor; it embeds the capture service ELF
+# (see src/control.h). The service ELF can also be deployed on its own,
+# without automatic recovery.
+SERVICE_ELF := build/ps5-web-stream-service.elf
 SRCDIR  := src
 GENDIR  := $(SRCDIR)/gen
 SRCS    := $(SRCDIR)/main.c $(SRCDIR)/flv.c $(SRCDIR)/avcap.c \
            $(SRCDIR)/http.c \
            $(SRCDIR)/audio.c $(SRCDIR)/status.c $(SRCDIR)/settings.c \
-           $(SRCDIR)/snapshot.c $(SRCDIR)/frame_jpeg.c
+           $(SRCDIR)/snapshot.c $(SRCDIR)/frame_jpeg.c $(SRCDIR)/control.c
 GEN     := $(GENDIR)/web_index.h $(GENDIR)/web_player.h $(GENDIR)/web_app.h \
            $(GENDIR)/web_flv.h $(GENDIR)/web_flv_license.h \
            $(GENDIR)/web_videojs.h $(GENDIR)/web_videojs_license.h $(GENDIR)/web_player_css.h
@@ -99,11 +103,18 @@ $(FFMPEG_STAMP): build/ffmpeg-$(FFMPEG_VERSION).tar.xz
 	$(MAKE) -C $(FFMPEG_BUILD)/obj install > $(FFMPEG_BUILD)/build.log
 	touch $@
 
-$(ELF): $(GEN) $(SRCS) $(FFMPEG_STAMP) $(wildcard $(SRCDIR)/*.h) FORCE
+$(SERVICE_ELF): $(GEN) $(SRCS) $(FFMPEG_STAMP) $(wildcard $(SRCDIR)/*.h) FORCE
+	@mkdir -p build
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(FFMPEG_LIBS) $(LDFLAGS)
 
+$(GENDIR)/service_elf.h: $(SERVICE_ELF) tools/embed.py
+	python3 tools/embed.py $< $@ service_elf
+
+$(ELF): $(GENDIR)/service_elf.h $(SRCDIR)/supervisor.c $(SRCDIR)/control.c $(SRCDIR)/control.h FORCE
+	$(CC) $(CFLAGS) -o $@ $(SRCDIR)/supervisor.c $(SRCDIR)/control.c $(LDFLAGS)
+
 clean:
-	rm -f $(ELF) $(GEN)
+	rm -f $(ELF) $(GEN) $(SERVICE_ELF) $(GENDIR)/service_elf.h
 
 # Send to a running ELF loader (elfldr, port 9021).
 deploy: $(ELF)
@@ -126,6 +137,8 @@ host-test: $(GEN)
 	./build/test_avcap
 	$(HOST_CC) $(HOST_CFLAGS) tests/test_audio.c -o build/test_audio
 	./build/test_audio
+	$(HOST_CC) $(HOST_CFLAGS) tests/test_control.c src/control.c -o build/test_control
+	./build/test_control
 	$(HOST_CC) $(HOST_CFLAGS) tests/test_capture_loop.c src/flv.c src/settings.c src/snapshot.c -o build/test_capture_loop
 	./build/test_capture_loop
 	$(HOST_CC) $(HOST_CFLAGS) tests/test_transport.c src/flv.c -o build/test_transport
